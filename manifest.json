@@ -1,0 +1,11 @@
+{
+  "name": "Tombola – Stand",
+  "short_name": "Tombola",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F3EFE6",
+  "theme_color": "#10184A"
+}

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10184A">
+<meta name="robots" content="noindex">
+<title>Tombola – Stand</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="stil.css">
+</head>
+<body class="stand">
+
+<header class="kopf">
+  <div class="marke">
+    <img class="logo" src="motive/vtr-logo.png" alt="Logo VTR" width="502" height="168">
+    <div>
+      <p class="schwung">Losverkauf</p>
+      <h1 class="block" id="titel">Tombola</h1>
+    </div>
+  </div>
+  <nav class="reiter" role="tablist" aria-label="Bereiche">
+    <button role="tab" data-ansicht="verkauf" aria-selected="true">Verkauf</button>
+    <button role="tab" data-ansicht="ziehung" aria-selected="false">Ziehung</button>
+    <button role="tab" data-ansicht="einstellungen" aria-selected="false">Einstellungen</button>
+  </nav>
+</header>
+
+<div class="hinweis warn" id="speicherWarnung" hidden>
+  <span>Dieses Gerät speichert gerade nichts. Verkaufte Lose gehen beim Schließen verloren – bitte den privaten Modus beenden.</span>
+</div>
+<div class="hinweis" id="sicherungHinweis" hidden>
+  <span id="sicherungText"></span>
+  <button class="knopf" data-aktion="sichern">Jetzt sichern</button>
+</div>
+
+<main>
+  <!-- ======================================================= Verkauf -->
+  <section id="verkauf">
+    <button class="verkauf-knopf" id="verkaufen">
+      <span class="block">Los verkaufen</span>
+      <span class="preis" id="preisText"></span>
+    </button>
+
+    <div class="zahlen">
+      <div class="zahl"><b class="ziffern" id="zHeute">0</b><span>Lose heute</span></div>
+      <div class="zahl"><b class="ziffern" id="zGesamt">0</b><span>Lose gesamt</span></div>
+      <div class="zahl"><b class="ziffern" id="zEinnahmen">0</b><span>Einnahmen in €</span></div>
+      <div class="zahl"><b class="ziffern" id="zGluehwein">0</b><span>Glühwein gewonnen</span></div>
+      <div class="zahl"><b class="ziffern" id="zBier">0</b><span>Schnaitl gewonnen</span></div>
+    </div>
+
+    <h2>Lose in den Töpfen</h2>
+    <ul class="liste" id="topfListe"></ul>
+
+    <h2>Zuletzt verkauft</h2>
+    <ul class="liste" id="letzte"></ul>
+  </section>
+
+  <!-- ======================================================= Ziehung -->
+  <section id="ziehung" hidden>
+    <p class="text">Jeder Topf wird für sich gezogen. Ein gezogenes Los kann nicht noch einmal gewinnen.</p>
+    <h2>Töpfe</h2>
+    <div class="toepfe" id="toepfe"></div>
+
+    <h2>Gewinnnummern veröffentlichen</h2>
+    <p class="text">Nach der Ziehung die Datei <b>gewinner.json</b> herunterladen und dort hochladen, wo die Los-Seite liegt – sie ersetzt die vorhandene Datei gleichen Namens. Danach sieht jeder auf seinem Los, ob es gezogen wurde.</p>
+    <div class="zeile">
+      <label class="feld">Abholung (steht beim Gewinner am Los)
+        <input class="breit" id="abholfrist" placeholder="z. B. bis 6. Jänner am Stand">
+      </label>
+      <button class="knopf" id="gewinnerLaden">gewinner.json herunterladen</button>
+    </div>
+
+    <h2>Gewinnerliste zum Aushängen</h2>
+    <p class="text">Unter dieser Adresse kann jeder die gezogenen Nummern nachsehen, auch ohne sein Los am Handy. Der QR-Code passt auf einen Aushang oder in einen Beitrag.</p>
+    <div class="listen-qr">
+      <div class="qr" id="listenQr"></div>
+      <div class="link-zeile" id="listenLink"></div>
+    </div>
+
+    <h2>Los prüfen</h2>
+    <p class="text">Bei der Abholung Losnummer und Prüfcode vom Handy des Gewinners eintippen.</p>
+    <form class="zeile" id="pruefForm">
+      <label class="feld">Losnummer <input class="kurz" id="pruefNr" inputmode="numeric" autocomplete="off"></label>
+      <label class="feld">Prüfcode <input class="kurz" id="pruefCode" autocomplete="off" autocapitalize="characters" maxlength="4"></label>
+      <button class="knopf" type="submit">Prüfen</button>
+    </form>
+    <div class="ergebnis-zeile" id="pruefErgebnis" hidden role="status"></div>
+  </section>
+
+  <!-- ================================================= Einstellungen -->
+  <section id="einstellungen" hidden>
+    <h2>Lospreis und Quoten</h2>
+    <div class="zeile">
+      <label class="feld">Preis pro Los (€) <input class="kurz" id="fPreis" type="number" min="0" step="0.5" inputmode="decimal"></label>
+      <label class="feld">Glühwein (%) <input class="kurz" id="fGluehwein" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
+      <label class="feld">Schnaitl (%) <input class="kurz" id="fBier" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
+      <label class="feld">Topf-Los (%) <input class="kurz" id="fTopf" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
+    </div>
+    <p class="text" id="nietenText"></p>
+
+    <h2>Töpfe</h2>
+    <table class="tabelle">
+      <thead><tr><th>Preis</th><th class="r">Gewicht</th><th class="r">Chance pro Los</th></tr></thead>
+      <tbody id="gewichte"></tbody>
+    </table>
+    <p class="text matt">Ein höheres Gewicht schickt mehr Lose in diesen Topf. Gewicht 0 nimmt den Topf heraus.</p>
+
+    <h2>Adresse der Los-Seite</h2>
+    <p class="text">Diese Adresse steckt im QR-Code. Leer lassen, wenn die Los-Seite neben dieser App liegt.</p>
+    <div class="zeile">
+      <label class="feld">Adresse <input class="breit" id="fLosSeite" inputmode="url" placeholder="https://…/los.html"></label>
+    </div>
+    <p class="text matt" id="losSeiteText"></p>
+
+    <h2>Sicherung</h2>
+    <p class="text" id="sicherungStand"></p>
+    <div class="zeile">
+      <button class="knopf" data-aktion="sichern">Sicherung exportieren</button>
+      <button class="knopf" id="einspielen">Sicherung einspielen</button>
+      <input type="file" id="sicherungDatei" accept="application/json,.json" hidden>
+    </div>
+
+    <h2>Neu anfangen</h2>
+    <p class="text">Löscht alle verkauften Lose und die Ziehung auf diesem Gerät. Die Einstellungen bleiben.</p>
+    <div class="zeile"><button class="knopf" id="allesLoeschen">Alle Lose löschen</button></div>
+  </section>
+</main>
+
+<!-- Verkauftes Los -->
+<dialog id="losDialog" aria-labelledby="losTitel">
+  <div class="los-dialog">
+    <div class="qr-seite">
+      <div class="block" id="losTitel">Bitte scannen</div>
+      <div class="qr" id="qr"></div>
+      <div class="link-zeile" id="linkZeile"></div>
+    </div>
+    <div class="seller-seite">
+      <div class="losnummer">Los <b class="ziffern" id="dNr"></b><span class="matt" id="dCode"></span></div>
+      <button class="verdeckt" id="dErgebnis"></button>
+      <div class="zeile">
+        <button class="knopf leise" id="dStorno">Storno</button>
+        <button class="knopf rot" id="dFertig">Fertig</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Rückfrage -->
+<dialog id="frageDialog">
+  <form method="dialog" class="frage">
+    <p id="frageText"></p>
+    <div class="zeile">
+      <button class="knopf" value="nein" id="frageNein">Abbrechen</button>
+      <button class="knopf rot" value="ja" id="frageJa">Ja</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="daten.js"></script>
+<script src="logik.js"></script>
+<script src="qr.js"></script>
+<script src="stand.js"></script>
+</body>
+</html>

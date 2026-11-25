@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10184A">
+<meta name="robots" content="noindex">
+<title>Dein Los</title>
+<link rel="stylesheet" href="stil.css">
+</head>
+<body class="los">
+
+<img class="zweige" src="motive/himmel.svg" alt="">
+
+<header class="los-kopf">
+  <p class="schwung">Dein Los bei der</p>
+  <h1 class="block" id="titel">Tombola</h1>
+  <p class="verein"><span id="verein"></span><img class="logo" src="motive/vtr-logo.png" alt="Logo VTR" width="502" height="168"></p>
+</header>
+
+<main class="karte ticket" id="karte" hidden>
+  <div class="abriss">
+    <span class="wort schwung">Dein Los</span>
+    <span class="block ziffern" id="nr"></span>
+  </div>
+
+  <div class="rubbelfeld">
+    <div class="ergebnis" id="ergebnis" aria-hidden="true">
+      <div class="funken"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="blasen"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="motiv" id="motiv"></div>
+      <div class="worte">
+        <p class="dach" id="dach"></p>
+        <p class="gross block" id="gross"></p>
+        <p class="klein" id="klein" hidden></p>
+      </div>
+    </div>
+    <canvas id="decke" aria-label="Rubbelfeld"></canvas>
+  </div>
+  <button class="antippen" id="antippen">Lieber antippen als rubbeln</button>
+
+  <div class="details" id="details" hidden></div>
+  <div class="fuss"><span>Prüfcode <b id="pruef"></b></span><span id="fussNr"></span></div>
+  <div aria-live="polite" id="ansage" style="position:absolute;left:-9999px"></div>
+</main>
+
+<main class="karte" id="fehler" hidden>
+  <div class="fehler">
+    <p class="block">Kein gültiges Los</p>
+    <p>Dieser Link ist unvollständig. Bitte scanne den QR-Code am Stand noch einmal.</p>
+  </div>
+</main>
+
+<canvas id="konfetti" aria-hidden="true"></canvas>
+
+<script src="daten.js"></script>
+<script src="logik.js"></script>
+<script src="los.js"></script>
+</body>
+</html>

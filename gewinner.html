@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10184A">
+<meta name="robots" content="noindex">
+<title>Gewinnnummern</title>
+<link rel="stylesheet" href="stil.css">
+</head>
+<body class="los">
+
+<img class="zweige" src="motive/himmel.svg" alt="">
+
+<header class="los-kopf">
+  <p class="schwung">Gewinnnummern der</p>
+  <h1 class="block" id="titel">Tombola</h1>
+  <p class="verein"><span id="verein"></span><img class="logo" src="motive/vtr-logo.png" alt="Logo VTR" width="502" height="168"></p>
+</header>
+
+<main class="karte ticket">
+  <div class="abriss">
+    <span class="wort schwung">Gezogen wurde</span>
+  </div>
+
+  <div class="gewinn-seite">
+    <p id="status">Die Gewinnnummern werden geladen …</p>
+    <ul class="gewinnliste" id="liste"></ul>
+
+    <form class="nummer-pruefen" id="pruefForm">
+      <h2>Dein Los nachsehen</h2>
+      <div class="zeile">
+        <label class="feld">Losnummer <input class="kurz" id="pruefNr" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+        <button class="knopf rot" type="submit">Nachsehen</button>
+      </div>
+      <div class="ergebnis-zeile" id="pruefErgebnis" hidden role="status"></div>
+    </form>
+
+    <p class="klein-text">Für die Abholung brauchst du dein Los mit der Losnummer und dem Prüfcode – als Seite am Handy oder als Screenshot.</p>
+    <div id="kontakt"></div>
+  </div>
+</main>
+
+<script src="daten.js"></script>
+<script src="logik.js"></script>
+<script src="gewinner.js"></script>
+</body>
+</html>
