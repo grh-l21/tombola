@@ -1,5 +1,10 @@
 // Stand-App: Verkauf, Ziehung, Einstellungen. Alles liegt im Speicher dieses Geräts.
 (function () {
+  // Die Stand-App läuft nie eingebettet in einer fremden Seite – dort könnte jemand Tipper auf ihre Knöpfe lenken.
+  if (window.top !== window.self) {
+    document.body.textContent = 'Die Stand-App lässt sich nicht in andere Seiten einbetten. Bitte direkt öffnen.';
+    return;
+  }
   const T = window.Tombola;
   const DATEN = window.TOMBOLA_DATEN;
   const PREISE = DATEN.preise;
@@ -18,18 +23,42 @@
   const preisVon = (id) => PREISE.find((p) => p.id === id);
 
   // ---------- Speicher ----------
-  let speicherOk = true;
+  // "kaputt" merkt sich, was sich zuletzt nicht speichern ließ (Speicher voll, privater Modus).
+  // Solange etwas darin steht, gilt, was dieses Fenster im Kopf hat – der ältere Stand im Gerät würde neue Lose überschreiben.
+  const kaputt = new Set();
   try {
     localStorage.setItem('tombola.test', '1');
     localStorage.removeItem('tombola.test');
-  } catch (e) { speicherOk = false; }
+  } catch (e) { kaputt.add('tombola.test'); }
+  const speicherOk = () => kaputt.size === 0;
 
   function lesen(key) {
     try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
   }
   function schreiben(key, wert) {
-    try { localStorage.setItem(key, JSON.stringify(wert)); } catch (e) { speicherOk = false; }
-    $('speicherWarnung').hidden = speicherOk;
+    const vorher = speicherOk();
+    let ok = true;
+    try {
+      localStorage.setItem(key, JSON.stringify(wert));
+      kaputt.delete(key);
+      kaputt.delete('tombola.test');
+    } catch (e) {
+      ok = false;
+      kaputt.add(key);
+    }
+    $('speicherWarnung').hidden = speicherOk();
+    if (vorher && !ok) speicherAlarm();
+    return ok;
+  }
+  // Einmal deutlich sagen, sobald das Speichern ausfällt – die Leiste oben übersieht man im Verkauf leicht.
+  function speicherAlarm() {
+    setTimeout(() => {
+      if ($('frageDialog').open) return;
+      frage('Achtung: Dieses Gerät kann gerade nicht speichern (Speicher voll oder privater Modus). '
+        + 'Was ab jetzt verkauft wird, geht beim Schließen der App verloren'
+        + (sync ? ', sobald es nicht in der gemeinsamen Liste angekommen ist' : '')
+        + '. Bitte jetzt oben auf „Jetzt sichern“ tippen und an diesem Gerät nicht weiterverkaufen.', 'OK');
+    }, 0);
   }
 
   let config = T.configPruefen(lesen(LS_CONFIG), PREISE);
@@ -40,23 +69,40 @@
   // Merkzettel für die gemeinsame Liste mehrerer Geräte; null = dieses Gerät verkauft nur für sich.
   function syncLesen() {
     const s = lesen(LS_SYNC);
-    return s && typeof s === 'object' && s.code && s.geraet && s.offen ? s : null;
+    if (!s || typeof s !== 'object' || !s.code || !s.geraet || !s.offen) return null;
+    if (!Array.isArray(s.offen.aus)) s.offen.aus = [];   // Merkzettel aus einer älteren Fassung der App
+    return s;
   }
   let sync = syncLesen();
+  // Lose und Merkzettel gehören zusammen: Der Merkzettel sagt, was die gemeinsame Liste schon geliefert hat.
+  // Lässt sich die Liste nicht speichern, bleibt auch der alte Merkzettel im Gerät stehen – sonst würden nach einem
+  // Neustart Lose der anderen Geräte fehlen, ohne dass die App sie noch einmal holt.
   function syncSpeichern() {
-    if (sync) schreiben(LS_SYNC, sync);
-    else { try { localStorage.removeItem(LS_SYNC); } catch (e) { /* privater Modus */ } }
+    if (kaputt.has(LS_STAND)) { kaputt.add(LS_SYNC); return false; }
+    if (sync) return schreiben(LS_SYNC, sync);
+    try { localStorage.removeItem(LS_SYNC); kaputt.delete(LS_SYNC); } catch (e) { /* privater Modus */ }
+    $('speicherWarnung').hidden = speicherOk();
+    return true;
+  }
+  function standUndSyncSpeichern() {
+    standSpeichern();
+    return syncSpeichern();
   }
 
   // Maßgeblich ist der Speicher des Geräts, nicht dieses Fenster. Ist die App ein zweites Mal offen
   // (zweiter Tab, ein Fenster von gestern), hat das andere Fenster vielleicht inzwischen verkauft.
   // Darum vor jeder Änderung neu lesen – sonst überschreibt ein altes Fenster die Lose des anderen.
   function nachladen() {
-    const s = lesen(LS_STAND);
-    if (s) stand = T.standPruefen(s);
-    const c = lesen(LS_CONFIG);
-    if (c) config = T.configPruefen(c, PREISE);
-    if (speicherOk) sync = syncLesen();
+    if (kaputt.has('tombola.test')) return;   // dieses Gerät speichert gar nichts
+    if (!kaputt.has(LS_STAND)) {
+      const s = lesen(LS_STAND);
+      if (s) stand = T.standPruefen(s);
+    }
+    if (!kaputt.has(LS_CONFIG)) {
+      const c = lesen(LS_CONFIG);
+      if (c) config = T.configPruefen(c, PREISE);
+    }
+    if (!kaputt.has(LS_SYNC) && !kaputt.has(LS_STAND)) sync = syncLesen();
   }
   // Hinter einem offenen Los wird nicht neu gezeichnet – die Listen würden das Ergebnis verraten.
   function auffrischen() {
@@ -154,8 +200,7 @@
     }
     // Erst auf dem Gerät speichern, dann an die gemeinsame Liste schicken – so geht kein Los verloren, auch ohne Empfang.
     if (sync) T.abgleichVormerken(sync, { los: los.nr });
-    standSpeichern();
-    syncSpeichern();
+    standUndSyncSpeichern();
     zeigeLos(los);   // Die Listen dahinter werden erst nach dem Schließen neu gezeichnet – sonst verraten sie das Ergebnis.
     abgleichen();
   });
@@ -173,6 +218,7 @@
     feld.className = 'verdeckt';
     delete feld.dataset.art;
     feld.replaceChildren(el('span', '', 'Ergebnis zeigen'), el('small', '', 'für den Ausschank oder wenn kein Handy da ist'));
+    $('dAus').hidden = true;
     $('losDialog').showModal();
     $('dFertig').focus();
   }
@@ -188,13 +234,36 @@
     if (los.erg === T.NIETE) {
       feld.replaceChildren(el('span', 'block', 'Niete'), el('small', '', 'Leider nichts gewonnen.'));
     } else if (los.erg === T.GLUEHWEIN) {
-      feld.replaceChildren(el('span', 'block', 'Glühwein'), el('small', '', 'Jetzt einen Glühwein ausschenken.'));
+      feld.replaceChildren(el('span', 'block', 'Glühwein'),
+        el('small', '', los.aus ? 'Schon ausgegeben um ' + uhrzeit(los.aus) + '.' : 'Jetzt einen Glühwein ausschenken.'));
     } else if (los.erg === T.BIER) {
-      feld.replaceChildren(el('span', 'block', 'Schnaitl'), el('small', '', 'Jetzt ein Schnaitl (0,3 l) ausgeben.'));
+      feld.replaceChildren(el('span', 'block', 'Schnaitl'),
+        el('small', '', los.aus ? 'Schon ausgegeben um ' + uhrzeit(los.aus) + '.' : 'Jetzt ein Schnaitl (0,3 l) ausgeben.'));
     } else {
       feld.replaceChildren(el('small', '', 'Im Lostopf für'), el('span', 'block', p.name), el('small', '', 'Losnummer und Prüfcode mitgeben.'));
     }
     $('dCode').textContent = 'Prüfcode ' + los.pruef;
+    // Nach dem Ausschenken vermerken – dann fällt auf, wenn dasselbe Los später noch einmal gezeigt wird.
+    $('dAus').hidden = !((los.erg === T.GLUEHWEIN || los.erg === T.BIER) && !los.aus && !los.storno);
+  });
+
+  // Vermerkt die Ausgabe auf diesem Gerät und schickt sie an die gemeinsame Liste. Gibt das Los zurück.
+  function ausgegeben(nr) {
+    nachladen();
+    if (T.ausgeben(stand, nr, Date.now()) && sync) T.abgleichVormerken(sync, { aus: nr });
+    standUndSyncSpeichern();
+    abgleichen();
+    return stand.lose.find((l) => l.nr === nr);
+  }
+  $('dAus').addEventListener('click', () => {
+    if (!offenesLos) return;
+    const los = ausgegeben(offenesLos.nr);
+    if (!los) return;
+    offenesLos = los;
+    $('dAus').hidden = true;
+    const klein = $('dErgebnis').querySelector('small');
+    if (klein && los.aus) klein.textContent = 'Ausgegeben um ' + uhrzeit(los.aus) + '.';
+    $('dFertig').focus();
   });
 
   $('dFertig').addEventListener('click', () => $('losDialog').close());
@@ -203,9 +272,13 @@
     if (!los) return;
     if (!await frage('Los Nr. ' + T.nrText(los.nr) + ' stornieren? Es zählt dann nicht mehr und nimmt an keiner Ziehung teil.', 'Stornieren')) return;
     nachladen();
+    if (PREISE.some((p) => T.gezogene(stand, p.id).includes(los.nr))) {
+      await frage('Los Nr. ' + T.nrText(los.nr) + ' wurde schon gezogen und lässt sich nicht mehr stornieren. '
+        + 'Soll der Preis neu vergeben werden, unter „Ziehung“ auf „Neu ziehen“ tippen.', 'OK');
+      return;
+    }
     if (T.stornieren(stand, los.nr) && sync) T.abgleichVormerken(sync, { storno: los.nr });
-    standSpeichern();
-    syncSpeichern();
+    standUndSyncSpeichern();
     $('losDialog').close();
     zeichnen();
     abgleichen();
@@ -239,7 +312,7 @@
       const teile = [
         el('span', 'nr ziffern', 'Nr. ' + T.nrText(los.nr)),
         el('span', 'zeit ziffern', uhrzeit(los.t)),
-        el('span', 'erg' + ((los.erg === T.GLUEHWEIN || los.erg === T.BIER) && !los.storno ? ' marke-g' : ''), ergebnisText(los.erg) + (los.storno ? ' (storniert)' : ''))
+        el('span', 'erg' + ((los.erg === T.GLUEHWEIN || los.erg === T.BIER) && !los.storno ? ' marke-g' : ''), ergebnisText(los.erg) + (los.storno ? ' (storniert)' : los.aus ? ' · ausgegeben' : ''))
       ];
       if (los.storno) {
         li.append(...teile);
@@ -474,8 +547,7 @@
   }
   function nachZiehung() {
     if (sync) T.abgleichVormerken(sync, { ziehung: true });
-    standSpeichern();
-    syncSpeichern();
+    standUndSyncSpeichern();
     zeichnen();
     abgleichen();
   }
@@ -502,14 +574,27 @@
     $('toepfe').replaceChildren(...PREISE.map((p) => {
       const karte = el('article', 'topf');
       const gezogen = T.gezogene(stand, p.id);
+      // Ein gezogenes Los kann storniert sein, wenn ein Gerät storniert hat, bevor es von der Ziehung wusste. Es zählt dann nicht.
+      const storniert = T.stornoGezogen(stand, p.id);
+      const gueltig = gezogen.length - storniert.length;
       const rest = T.imTopf(stand, p.id).length;
       karte.append(el('h3', '', p.name));
-      karte.append(el('div', 'matt', zahl(rest) + (rest === 1 ? ' Los' : ' Lose') + ' im Topf · ' + gezogen.length + ' von ' + p.ziehungen + ' gezogen'));
+      karte.append(el('div', 'matt', zahl(rest) + (rest === 1 ? ' Los' : ' Lose') + ' im Topf · ' + gueltig + ' von ' + p.ziehungen + ' gezogen'));
+      if (storniert.length) {
+        karte.append(el('div', 'ergebnis-zeile schlecht', (storniert.length === 1 ? 'Ein gezogenes Los wurde' : storniert.length + ' gezogene Lose wurden')
+          + ' storniert und ' + (storniert.length === 1 ? 'zählt' : 'zählen') + ' nicht als Gewinn.'
+          + (rest ? ' Bitte noch einmal ziehen.' : ' Im Topf liegt kein weiteres Los.')));
+      }
 
       if (gezogen.length) {
         const ul = el('ul', 'gezogen');
         gezogen.forEach((nr) => {
           const li = el('li');
+          if (storniert.includes(nr)) {
+            li.append(el('span', 'nummer ziffern', 'Nr. ' + T.nrText(nr)), el('span', 'spaet', 'storniert – zählt nicht'));
+            ul.append(li);
+            return;
+          }
           const neu = el('button', 'knopf leise', 'Neu ziehen');
           neu.addEventListener('click', async () => {
             ton.bereit();   // direkt auf den Fingertipp, sonst bleibt das Gerät später stumm
@@ -536,7 +621,7 @@
         knopf.textContent = 'Kein Los im Topf';
         knopf.disabled = true;
       } else {
-        knopf.textContent = p.ziehungen > 1 ? 'Ziehen (' + (gezogen.length + 1) + ' von ' + p.ziehungen + ')' : 'Ziehen';
+        knopf.textContent = p.ziehungen > 1 ? 'Ziehen (' + (gueltig + 1) + ' von ' + p.ziehungen + ')' : 'Ziehen';
         knopf.addEventListener('click', async () => {
           ton.bereit();   // direkt auf den Fingertipp, sonst bleibt das Gerät später stumm
           if (!await frage('Jetzt für „' + p.name + '“ ziehen?', 'Ziehen')) return;
@@ -568,22 +653,47 @@
     e.preventDefault();
     if (sync) await abgleichen();   // damit auch ein eben erst verkauftes Los eines anderen Geräts bekannt ist
     nachladen();
-    const r = T.losPruefen(stand, $('pruefNr').value.trim(), $('pruefCode').value);
+    zeigePruefung(T.losPruefen(stand, $('pruefNr').value.trim(), $('pruefCode').value));
+  });
+
+  const wann = (t) => new Date(t).toLocaleString('de-AT', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  let geprueft = null;   // Nummer des Loses, für das gerade "Als ausgegeben vermerken" angeboten wird
+
+  function zeigePruefung(r) {
     const aus = $('pruefErgebnis');
     let text;
     let gut = false;
+    geprueft = null;
     if (r.status === 'unbekannt') text = 'Diese Losnummer wurde hier nicht verkauft.';
     else if (r.status === 'falscherCode') text = 'Der Prüfcode passt nicht zu dieser Losnummer.';
     else if (r.status === 'storno') text = 'Dieses Los wurde storniert.';
-    else if (r.gewonnen) { text = 'Gültig. Gewinn: ' + preisVon(r.los.erg).name + '.'; gut = true; }
     else if (r.los.erg === T.NIETE) text = 'Gültiges Los, aber eine Niete.';
-    else if (r.los.erg === T.GLUEHWEIN) text = 'Gültiges Los: Glühwein, beim Verkauf ausgeschenkt.';
-    else if (r.los.erg === T.BIER) text = 'Gültiges Los: Schnaitl, beim Verkauf ausgegeben.';
-    else text = 'Gültiges Los im Topf „' + preisVon(r.los.erg).name + '“, wurde aber nicht gezogen.';
+    else if (r.gewonnen || r.los.erg === T.GLUEHWEIN || r.los.erg === T.BIER) {
+      const was = r.gewonnen ? 'Gewinn: ' + preisVon(r.los.erg).name : r.los.erg === T.GLUEHWEIN ? 'ein Glühwein' : 'ein Schnaitl';
+      if (r.los.aus) text = 'Achtung: Für dieses Los wurde schon ausgegeben (' + was + '), am ' + wann(r.los.aus) + ' Uhr.';
+      else { text = 'Gültig – ' + was + '. Noch nicht ausgegeben.'; gut = true; geprueft = r.los.nr; }
+    } else if (preisVon(r.los.erg)) text = 'Gültiges Los im Topf „' + preisVon(r.los.erg).name + '“, wurde aber nicht gezogen.';
+    else text = 'Gültiges Los, aber ohne Gewinn.';
     aus.textContent = text;
     aus.className = 'ergebnis-zeile ' + (gut ? 'gut' : 'schlecht');
     aus.hidden = false;
+    $('pruefAus').hidden = geprueft === null;
+  }
+  $('pruefAus').addEventListener('click', () => {
+    if (geprueft === null) return;
+    const los = ausgegeben(geprueft);
+    geprueft = null;
+    $('pruefAus').hidden = true;
+    if (!los || !los.aus) return;
+    const aus = $('pruefErgebnis');
+    aus.textContent = 'Vermerkt: ausgegeben um ' + uhrzeit(los.aus) + ' Uhr (Los Nr. ' + T.nrText(los.nr) + ').';
+    aus.className = 'ergebnis-zeile gut';
   });
+  ['pruefNr', 'pruefCode'].forEach((id) => $(id).addEventListener('input', () => {
+    geprueft = null;
+    $('pruefAus').hidden = true;
+    $('pruefErgebnis').hidden = true;
+  }));
 
   // ---------- Einstellungen ----------
   // Preis, Quoten, Gewichte und Abholfrist gelten mit gemeinsamer Liste für alle Geräte.
@@ -746,6 +856,7 @@
       const daten = await res.json().catch(() => ({}));
       if (!res.ok) {
         const e = new Error('Ablage: ' + res.status);
+        e.status = res.status;
         e.kurz = daten.fehler || 'fehler';
         throw e;
       }
@@ -774,9 +885,8 @@
         if (!sync || sync.code !== anfrage.code || sync.geraet !== anfrage.geraet) return false;
         const r = T.abgleichAntwort(sync, stand, config, anfrage, antwort, PREISE, Date.now());
         config = r.config;
-        standSpeichern();
         configSpeichern();
-        syncSpeichern();
+        standUndSyncSpeichern();
         abgleichFehler = null;
         if (r.meldung) melden(r.meldung);
         if (!T.abgleichOffen(sync)) {
@@ -840,6 +950,22 @@
     });
   }
 
+  function passwortFragen(text) {
+    return new Promise((fertig) => {
+      const d = $('passwortDialog');
+      $('passwortText').textContent = text;
+      $('passwortFeld').value = '';
+      d.returnValue = 'nein';
+      d.addEventListener('close', () => {
+        const wert = $('passwortFeld').value;
+        $('passwortFeld').value = '';
+        fertig(d.returnValue === 'ja' ? wert : null);
+      }, { once: true });
+      d.showModal();
+      $('passwortFeld').focus();
+    });
+  }
+
   function teamZeigen() {
     if (!sync) return;
     // Der QR-Code führt zur Tombola im Internet – auch wenn die Liste an der Testadresse am Rechner angelegt wurde.
@@ -877,19 +1003,33 @@
     const name = await nameFragen(text, neu ? 'Anlegen' : 'Beitreten');
     if (name === null) return;
     let beitritt;
-    try {
-      beitritt = await ruf('/v1/beitreten', { code, neu, name });
-    } catch (e) {
-      await frage(e.kurz === 'unbekannt'
-        ? 'Diesen Team-Code kennt die gemeinsame Liste nicht. Bitte den QR-Code am anderen Gerät noch einmal scannen.'
-        : 'Das hat nicht geklappt. Bitte die Internet-Verbindung prüfen und noch einmal versuchen.', 'OK');
-      return;
+    let anlegen;   // das Anlege-Passwort; gefragt wird erst, wenn die gemeinsame Liste eines verlangt
+    for (;;) {
+      try {
+        beitritt = await ruf('/v1/beitreten', anlegen === undefined ? { code, neu, name } : { code, neu, name, anlegen });
+        break;
+      } catch (e) {
+        if (neu && e.kurz === 'anlegen') {
+          anlegen = await passwortFragen(anlegen === undefined
+            ? 'Eine neue gemeinsame Liste darf nur der Verein anlegen. Bitte das Anlege-Passwort eingeben.'
+            : 'Das Passwort stimmt nicht. Bitte noch einmal eingeben.');
+          if (anlegen === null) return;
+          continue;
+        }
+        await frage(e.kurz === 'unbekannt'
+          ? 'Diesen Team-Code kennt die gemeinsame Liste nicht. Bitte den QR-Code am anderen Gerät noch einmal scannen.'
+          : e.kurz === 'voll' && e.status === 409
+            ? 'An dieser gemeinsamen Liste hängen schon 99 Geräte. Mehr gehen nicht.'
+            : e.kurz === 'voll'
+              ? 'Es lässt sich gerade keine neue gemeinsame Liste anlegen, weil schon zu viele Listen bestehen. Das liegt nicht an der Verbindung – bitte bei der Person melden, die die Tombola eingerichtet hat.'
+              : 'Das hat nicht geklappt. Bitte die Internet-Verbindung prüfen und noch einmal versuchen.', 'OK');
+        return;
+      }
     }
     nachladen();
     if (!neu) stand = T.leererStand();
     sync = T.abgleichNeu(code, beitritt, stand, neu);
-    standSpeichern();
-    syncSpeichern();
+    standUndSyncSpeichern();
     abgleichFehler = null;
     zeichnen();
     await abgleichen();
@@ -931,8 +1071,7 @@
       nachladen();
       if (!sync) return;
       T.abgleichGeleert(sync, stand, r.epoche);
-      standSpeichern();
-      syncSpeichern();
+      standUndSyncSpeichern();
       zeichnen();
     } catch (e) {
       if (e.kurz !== 'veraltet') {
@@ -982,7 +1121,9 @@
       + (DATEN.adresse ? ' Die echte Tombola läuft unter ' + DATEN.adresse : '');
     $('testHinweis').hidden = false;
   }
-  $('speicherWarnung').hidden = speicherOk;
+  $('speicherWarnung').hidden = speicherOk();
+  // Den Browser bitten, die Daten dieser Seite nicht von sich aus wegzuräumen, wenn der Gerätespeicher knapp wird.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   zeichnen();
   setInterval(zeichneHinweis, 60000);
 

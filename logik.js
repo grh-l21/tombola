@@ -103,6 +103,8 @@
   }
 
   // Storno geht nur, solange das Los nicht gezogen wurde.
+  // Mit mehreren Geräten kann es trotzdem passieren, dass ein gezogenes Los storniert ist: wenn ein Gerät storniert,
+  // bevor es von der Ziehung erfährt. Dann gilt das Storno – siehe gueltigGezogene.
   function stornieren(stand, nr) {
     const los = stand.lose.find((l) => l.nr === nr);
     if (!los || los.storno) return false;
@@ -129,6 +131,16 @@
 
   function gezogene(stand, id) { return stand.ziehung[id] || []; }
 
+  // Gezogene Nummern, deren Los storniert wurde. Sie zählen nicht als Gewinner.
+  function stornoGezogen(stand, id) {
+    const storniert = new Set(stand.lose.filter((l) => l.storno).map((l) => l.nr));
+    return gezogene(stand, id).filter((nr) => storniert.has(nr));
+  }
+  function gueltigGezogene(stand, id) {
+    const raus = stornoGezogen(stand, id);
+    return raus.length ? gezogene(stand, id).filter((nr) => !raus.includes(nr)) : gezogene(stand, id);
+  }
+
   // Lose, die im Topf liegen und noch gezogen werden können.
   function imTopf(stand, id) {
     const raus = gezogene(stand, id).concat(stand.verfallen[id] || []);
@@ -136,11 +148,17 @@
   }
 
   function topfFertig(stand, preis) {
-    return gezogene(stand, preis.id).length >= preis.ziehungen;
+    return gueltigGezogene(stand, preis.id).length >= preis.ziehungen;
   }
 
   // Zieht ein Los aus dem Topf. Gibt die Losnummer zurück oder null.
+  // Eine gezogene Nummer, deren Los inzwischen storniert ist, verfällt dabei.
   function ziehen(stand, preis, rand01) {
+    const storniert = stornoGezogen(stand, preis.id);
+    if (storniert.length) {
+      stand.ziehung[preis.id] = gueltigGezogene(stand, preis.id);
+      stand.verfallen[preis.id] = (stand.verfallen[preis.id] || []).concat(storniert);
+    }
     if (topfFertig(stand, preis)) return null;
     const lose = imTopf(stand, preis.id);
     if (!lose.length) return null;
@@ -163,8 +181,9 @@
     const gewinner = [];
     const fertig = [];
     preise.forEach((p) => {
-      gezogene(stand, p.id).forEach((nr) => gewinner.push({ nr, topf: p.id }));
-      if (topfFertig(stand, p) || (gezogene(stand, p.id).length && !imTopf(stand, p.id).length)) fertig.push(p.id);
+      const gueltig = gueltigGezogene(stand, p.id);
+      gueltig.forEach((nr) => gewinner.push({ nr, topf: p.id }));
+      if (topfFertig(stand, p) || (gueltig.length && !imTopf(stand, p.id).length)) fertig.push(p.id);
     });
     return { stand: new Date(jetzt).toISOString(), abholfrist: config.abholfrist, fertig, gewinner };
   }
@@ -205,6 +224,14 @@
     if (los.storno) return { status: 'storno', los };
     const gewonnen = gezogene(stand, los.erg).includes(los.nr);
     return { status: 'ok', los, gewonnen };
+  }
+
+  // Preis oder Getränk wurde übergeben: einmal vermerken, mit Uhrzeit. So fällt auf, wenn dasselbe Los zweimal kommt.
+  function ausgeben(stand, nr, jetzt) {
+    const los = stand.lose.find((l) => l.nr === Number(nr));
+    if (!los || los.storno || los.aus) return false;
+    los.aus = jetzt;
+    return true;
   }
 
   const tagVon = (t) => {
@@ -298,14 +325,19 @@
       offen: {
         lose: eigene.map((l) => l.nr),
         storno: eigene.filter((l) => l.storno).map((l) => l.nr),
+        aus: eigene.filter((l) => l.aus).map((l) => l.nr),
         ziehung: anleger && gezogen ? 1 : 0,
         config: anleger ? 1 : 0
       }
     };
   }
 
+  // Merkzettel aus einer älteren Fassung der App kennen "ausgegeben" noch nicht.
+  const ausOffen = (sync) => (Array.isArray(sync.offen.aus) ? sync.offen.aus : (sync.offen.aus = []));
+
   // Nach jeder Änderung am Gerät: vormerken, was die Ablage noch nicht hat.
   function abgleichVormerken(sync, was) {
+    if (was.aus !== undefined && !ausOffen(sync).includes(was.aus)) ausOffen(sync).push(was.aus);
     if (was.los !== undefined && !sync.offen.lose.includes(was.los)) sync.offen.lose.push(was.los);
     if (was.storno !== undefined && !sync.offen.storno.includes(was.storno)) sync.offen.storno.push(was.storno);
     if (was.ziehung) sync.offen.ziehung += 1;
@@ -313,7 +345,7 @@
   }
 
   const abgleichOffen = (sync) =>
-    sync.offen.lose.length > 0 || sync.offen.storno.length > 0 || sync.offen.ziehung > 0 || sync.offen.config > 0;
+    sync.offen.lose.length > 0 || sync.offen.storno.length > 0 || ausOffen(sync).length > 0 || sync.offen.ziehung > 0 || sync.offen.config > 0;
 
   // Was dieses Gerät der Ablage schickt.
   function abgleichAnfrage(sync, stand, config) {
@@ -322,6 +354,7 @@
     const nachNr = new Map(stand.lose.map((l) => [l.nr, l]));
     // Ein Storno geht erst mit, wenn auch sein Los bei der Ablage ist.
     const storno = sync.offen.storno.filter((nr) => !spaeter.includes(nr)).slice(0, PAKET);
+    const aus = ausOffen(sync).filter((nr) => !spaeter.includes(nr)).slice(0, PAKET);
     const a = {
       code: sync.code, geraet: sync.geraet, epoche: sync.epoche, seit: sync.cursor,
       lose: paket.filter((nr) => nachNr.has(nr)).map((nr) => {
@@ -330,10 +363,12 @@
       }),
       storno
     };
+    // Die Liste gibt es nur, wenn etwas vermerkt ist – eine ältere Ablage kennt sie nicht.
+    if (aus.length) a.aus = aus.filter((nr) => nachNr.has(nr) && nachNr.get(nr).aus).map((nr) => ({ nr, t: nachNr.get(nr).aus }));
     if (sync.offen.ziehung) a.ziehung = { basis: sync.ziehungV, wert: { ziehung: stand.ziehung, verfallen: stand.verfallen } };
     if (sync.offen.config) a.config = gemeinsameConfig(config);
     // Merkt sich, was genau unterwegs ist – ohne dass es mitgeschickt wird.
-    Object.defineProperty(a, 'merk', { value: { lose: paket, storno, ziehung: sync.offen.ziehung, config: sync.offen.config } });
+    Object.defineProperty(a, 'merk', { value: { lose: paket, storno, aus, ziehung: sync.offen.ziehung, config: sync.offen.config } });
     return a;
   }
 
@@ -365,6 +400,7 @@
       sync.offen = {
         lose: behalten.map((l) => l.nr),
         storno: behalten.filter((l) => l.storno).map((l) => l.nr),
+        aus: behalten.filter((l) => l.aus).map((l) => l.nr),
         ziehung: 0,
         config: sync.offen.config
       };
@@ -372,6 +408,7 @@
     } else {
       sync.offen.lose = sync.offen.lose.filter((nr) => !merk.lose.includes(nr));
       sync.offen.storno = sync.offen.storno.filter((nr) => !merk.storno.includes(nr));
+      sync.offen.aus = ausOffen(sync).filter((nr) => !merk.aus.includes(nr));
       if (antwort.ziehungAbgelehnt) {
         // Ein anderes Gerät hat zuerst gezogen. Die eigene Ziehung wird verworfen.
         sync.offen.ziehung = 0;
@@ -387,7 +424,11 @@
     antwort.lose.forEach((l) => {
       const da = nachNr.get(l.nr);
       if (!da) stand.lose.push(l);
-      else if (l.storno) da.storno = true;
+      else {
+        if (l.storno) da.storno = true;
+        // Der bei der Ablage zuerst angekommene Vermerk gilt auf allen Geräten – auch vor einem eigenen, noch nicht abgegebenen.
+        if (l.aus) da.aus = l.aus;
+      }
     });
     stand.lose.sort((a, b) => a.t - b.t || a.nr - b.nr);
 
@@ -422,7 +463,7 @@
     standLeeren(stand);
     sync.epoche = epoche;
     sync.cursor = 0;
-    sync.offen = { lose: [], storno: [], ziehung: 0, config: sync.offen.config };
+    sync.offen = { lose: [], storno: [], aus: [], ziehung: 0, config: sync.offen.config };
   }
 
   const api = {
@@ -430,8 +471,8 @@
     configPruefen, leererStand, standPruefen,
     auslosen, pruefcode, verkaufen, stornieren,
     nrText, losLink, linkLesen,
-    imTopf, gezogene, topfFertig, ziehen, neuZiehen,
-    gewinnerDatei, losStatus, kontaktLinks, losPruefen, statistik,
+    imTopf, gezogene, stornoGezogen, gueltigGezogene, topfFertig, ziehen, neuZiehen,
+    gewinnerDatei, losStatus, kontaktLinks, losPruefen, ausgeben, statistik,
     sicherung, sicherungLesen,
     bereich, teamCode, codeText, codeLesen, teamLink, nurAmGeraet,
     abgleichNeu, abgleichVormerken, abgleichOffen, abgleichAnfrage, abgleichAntwort, abgleichGeleert

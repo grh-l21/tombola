@@ -1,0 +1,7 @@
+# Gilt bei Cloudflare Pages für alle Seiten der Tombola.
+# Die Seiten dürfen nicht in fremde Seiten eingebettet werden – dort könnte jemand Tipper auf die Knöpfe der Stand-App lenken.
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer

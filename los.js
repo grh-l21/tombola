@@ -56,14 +56,16 @@
     if (status === 'gluehwein') {
       return {
         motiv: 'tasse', stufe: 'klein', gewinn: true, dach: 'Gewonnen', gross: 'Ein Glühwein',
-        text: ['Der geht aufs Haus. Hol ihn dir gleich am Stand.']
+        text: ['Der geht aufs Haus. Hol ihn dir gleich am Stand.',
+          'Zeig dort dieses Los. Wir prüfen die Losnummer ' + T.nrText(los.nr) + ' und den Prüfcode ' + los.pruef + '.']
       };
     }
     if (status === 'bier') {
       return {
         bild: 'schnaitl.jpg', bildText: 'Flasche Schnaitl Pils', stufe: 'klein', gewinn: true,
         dach: 'Gewonnen', gross: 'Ein Schnaitl', klein: 'Pils · 0,3 l',
-        text: ['Das geht aufs Haus. Hol dir dein Schnaitl gleich am Stand.']
+        text: ['Das geht aufs Haus. Hol dir dein Schnaitl gleich am Stand.',
+          'Zeig dort dieses Los. Wir prüfen die Losnummer ' + T.nrText(los.nr) + ' und den Prüfcode ' + los.pruef + '.']
       };
     }
     if (status === 'gewonnen') {

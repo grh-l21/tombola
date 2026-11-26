@@ -35,7 +35,8 @@
   <span id="testHinweisText"></span>
 </div>
 <div class="hinweis warn" id="speicherWarnung" hidden>
-  <span>Dieses Gerät speichert gerade nichts. Verkaufte Lose gehen beim Schließen verloren – bitte den privaten Modus beenden.</span>
+  <span>Dieses Gerät kann gerade nicht speichern (Speicher voll oder privater Modus). Neue Lose gehen beim Schließen verloren – bitte jetzt sichern und an diesem Gerät nicht weiterverkaufen.</span>
+  <button class="knopf" data-aktion="sichern">Jetzt sichern</button>
 </div>
 <div class="hinweis" id="sicherungHinweis" hidden>
   <span id="sicherungText"></span>
@@ -96,13 +97,14 @@
     </div>
 
     <h2>Los prüfen</h2>
-    <p class="text">Bei der Abholung Losnummer und Prüfcode vom Handy des Gewinners eintippen.</p>
+    <p class="text">Bei der Abholung Losnummer und Prüfcode vom Handy eintippen – auch bei Glühwein und Schnaitl, wenn jemand später damit kommt. Die Anzeige am Kundenhandy allein ist kein Beweis.</p>
     <form class="zeile" id="pruefForm">
       <label class="feld">Losnummer <input class="kurz" id="pruefNr" inputmode="numeric" autocomplete="off"></label>
       <label class="feld">Prüfcode <input class="kurz" id="pruefCode" autocomplete="off" autocapitalize="characters" maxlength="4"></label>
       <button class="knopf" type="submit">Prüfen</button>
     </form>
     <div class="ergebnis-zeile" id="pruefErgebnis" hidden role="status"></div>
+    <div class="zeile"><button class="knopf rot" id="pruefAus" hidden>Als ausgegeben vermerken</button></div>
   </section>
 
   <!-- ================================================= Einstellungen -->
@@ -173,6 +175,7 @@
       <button class="verdeckt" id="dErgebnis"></button>
       <div class="zeile">
         <button class="knopf leise" id="dStorno">Storno</button>
+        <button class="knopf" id="dAus" hidden>Ausgegeben</button>
         <button class="knopf rot" id="dFertig">Fertig</button>
       </div>
     </div>
@@ -218,6 +221,20 @@
     <div class="zeile">
       <button class="knopf" value="nein" id="beitrittNein">Abbrechen</button>
       <button class="knopf rot" value="ja" id="beitrittJa">Beitreten</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Neue gemeinsame Liste: Anlege-Passwort des Vereins -->
+<dialog id="passwortDialog">
+  <form method="dialog" class="frage">
+    <p id="passwortText"></p>
+    <label class="feld">Anlege-Passwort
+      <input class="breit" id="passwortFeld" type="password" autocomplete="off" autocapitalize="none" spellcheck="false">
+    </label>
+    <div class="zeile">
+      <button class="knopf" value="nein" id="passwortNein" formnovalidate>Abbrechen</button>
+      <button class="knopf rot" value="ja" id="passwortJa">Weiter</button>
     </div>
   </form>
 </dialog>
