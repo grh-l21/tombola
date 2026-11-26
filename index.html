@@ -70,6 +70,8 @@
   <!-- ======================================================= Ziehung -->
   <section id="ziehung" hidden>
     <p class="text">Jeder Topf wird für sich gezogen. Ein gezogenes Los kann nicht noch einmal gewinnen.</p>
+    <p class="text">Beim Ziehen rollen die Zahlen mit Trommelwirbel, bis ihr „Aufdecken“ antippt. Für die Übertragung das Gerät an die Lautsprecherbox hängen und vorher den Ton prüfen.</p>
+    <div class="zeile"><button class="knopf" id="tonTest">Ton testen</button></div>
     <div id="geraeteKasten" hidden>
       <h2>Verkaufsgeräte</h2>
       <p class="text">Vor der Ziehung sollen alle Geräte ihre Lose abgegeben haben. Ein Gerät, das sich länger nicht gemeldet hat, bitte kurz mit Empfang öffnen.</p>
@@ -174,6 +176,21 @@
         <button class="knopf leise" id="dStorno">Storno</button>
         <button class="knopf rot" id="dFertig">Fertig</button>
       </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Ziehung als Auftritt: Die Zahlen rollen mit Trommelwirbel, bis jemand "Aufdecken" antippt. -->
+<dialog id="ziehDialog" aria-labelledby="ziehPreis">
+  <div class="zieh-buehne">
+    <p class="schwung" id="ziehDach">Ziehung</p>
+    <div class="block zieh-preis" id="ziehPreis"></div>
+    <p class="zieh-nr">Los Nr.</p>
+    <div class="zieh-zahl ziffern" id="ziehZahl">0000</div>
+    <p class="zieh-unter" id="ziehUnter"></p>
+    <div class="zeile">
+      <button class="knopf rot gross" id="ziehAufdecken">Aufdecken</button>
+      <button class="knopf gross" id="ziehFertig" hidden>Fertig</button>
     </div>
   </div>
 </dialog>

@@ -509,3 +509,25 @@ body.los::after {
   #geraeteListe li { flex-wrap: wrap; gap: 2px 12px; }
   #geraeteListe .geraet { flex-basis: 100%; }
 }
+
+/* ---------- Ziehung als Auftritt ---------- */
+#ziehDialog {
+  width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; border-radius: 0;
+  background: radial-gradient(ellipse at 50% 40%, #2B3A8C 0%, var(--f-nacht) 45%, var(--f-nacht-tief) 100%); color: var(--f-creme-hell);
+}
+.zieh-buehne { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(8px, 2.2vh, 26px); padding: 24px; text-align: center; }
+.zieh-buehne .schwung { font-size: clamp(26px, 5vw, 50px); color: var(--f-gold-hell); line-height: 1; }
+.zieh-preis { font-size: clamp(28px, 6vw, 66px); line-height: 1.1; max-width: 18ch; }
+.zieh-nr { font-size: clamp(16px, 2.6vw, 28px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--f-gold-hell); margin-top: clamp(6px, 2vh, 22px); }
+.zieh-zahl {
+  font-weight: 800; font-size: clamp(88px, 25vw, 300px); line-height: 1; color: var(--f-gold);
+  font-variant-numeric: lining-nums; text-shadow: 0 6px 0 rgba(0, 0, 0, 0.28);   /* ohne "tabular": sonst wirken die Nullen dünn */
+}
+.zieh-zahl.rollt { opacity: 0.82; filter: blur(1.2px); animation: ziehZittern 0.11s linear infinite; }
+.zieh-zahl.steht { color: #FFF4CC; text-shadow: 0 0 46px rgba(246, 220, 140, 0.85), 0 6px 0 rgba(0, 0, 0, 0.28); animation: ziehKnall 0.75s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+.zieh-unter { font-size: clamp(17px, 3vw, 30px); min-height: 1.4em; }
+.zieh-buehne .zeile { justify-content: center; margin-top: clamp(8px, 2.5vh, 30px); }
+.knopf.gross { min-height: 64px; padding: 0.5em 1.8em; font-size: clamp(20px, 3vw, 28px); }
+#ziehDialog .knopf:not(.rot) { background: transparent; color: var(--f-creme-hell); border-color: rgba(251, 243, 220, 0.7); }
+@keyframes ziehZittern { 0% { transform: translateY(-2px); } 50% { transform: translateY(2px); } 100% { transform: translateY(-2px); } }
+@keyframes ziehKnall { 0% { transform: scale(0.55); opacity: 0.3; } 100% { transform: scale(1); opacity: 1; } }

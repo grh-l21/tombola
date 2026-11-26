@@ -230,6 +230,214 @@
     }));
   }
 
+  // ---------- Ton für die Ziehung ----------
+  // Trommelwirbel und Tusch entstehen im Gerät selbst (Web Audio) – es braucht keine Tondatei.
+  // Am iPhone bleibt es still, solange der Stummschalter an der Seite an ist.
+  const ton = (() => {
+    let ac = null;
+    let aus = null;
+    let rauschen = null;
+    let wirbel = null;        // { gain, takt }
+
+    // Muss direkt auf einen Fingertipp hin aufgerufen werden, sonst gibt der Browser den Ton nicht frei.
+    function bereit() {
+      if (!ac) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        ac = new AC();
+        const druck = ac.createDynamicsCompressor();
+        druck.threshold.value = -12;
+        druck.ratio.value = 6;
+        aus = ac.createGain();
+        aus.gain.value = 0.9;
+        aus.connect(druck);
+        druck.connect(ac.destination);
+        rauschen = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+        const d = rauschen.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (ac.state === 'suspended') ac.resume();
+      return true;
+    }
+
+    // Ein Schlag auf die kleine Trommel: kurzes Rauschen für das Fell, ein tiefer Ton für den Kessel.
+    function schlag(t, staerke, ziel) {
+      const q = ac.createBufferSource();
+      q.buffer = rauschen;
+      q.playbackRate.value = 0.9 + Math.random() * 0.3;
+      const f = ac.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 2300;
+      f.Q.value = 0.6;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(staerke, t + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.095);
+      q.connect(f);
+      f.connect(g);
+      g.connect(ziel);
+      q.start(t, Math.random() * 0.5, 0.12);
+      const o = ac.createOscillator();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(215, t);
+      o.frequency.exponentialRampToValueAtTime(140, t + 0.05);
+      const og = ac.createGain();
+      og.gain.setValueAtTime(staerke * 0.45, t);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      o.connect(og);
+      og.connect(ziel);
+      o.start(t);
+      o.stop(t + 0.08);
+    }
+
+    // Der Wirbel wird in den ersten Sekunden lauter und hält dann an, bis wirbelStopp() kommt.
+    function wirbelStart() {
+      if (!bereit()) return;
+      wirbelStopp();
+      const gain = ac.createGain();
+      const jetzt = ac.currentTime;
+      gain.gain.setValueAtTime(0.38, jetzt);
+      gain.gain.linearRampToValueAtTime(1, jetzt + 6);
+      gain.connect(aus);
+      let naechster = jetzt + 0.05;
+      let n = 0;
+      const planen = () => {
+        while (naechster < ac.currentTime + 0.18) {
+          schlag(naechster, (n % 4 === 0 ? 0.9 : 0.55) + Math.random() * 0.1, gain);
+          naechster += (1 / 27) * (0.92 + Math.random() * 0.16);
+          n++;
+        }
+      };
+      planen();
+      wirbel = { gain, takt: setInterval(planen, 40) };
+    }
+
+    function wirbelStopp() {
+      if (!wirbel) return;
+      clearInterval(wirbel.takt);
+      const g = wirbel.gain;
+      g.gain.cancelScheduledValues(ac.currentTime);
+      g.gain.setValueAtTime(g.gain.value, ac.currentTime);
+      g.gain.linearRampToValueAtTime(0, ac.currentTime + 0.04);
+      setTimeout(() => g.disconnect(), 400);
+      wirbel = null;
+    }
+
+    // Tusch: Paukenschlag, Becken und ein kurzer, dann ein langer Bläser-Akkord ("Ta-daa").
+    function tusch() {
+      if (!bereit()) return;
+      const t = ac.currentTime + 0.02;
+      schlag(t, 0.8, aus);
+      const pauke = ac.createOscillator();
+      pauke.frequency.setValueAtTime(150, t);
+      pauke.frequency.exponentialRampToValueAtTime(45, t + 0.3);
+      const pg = ac.createGain();
+      pg.gain.setValueAtTime(0.75, t);
+      pg.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      pauke.connect(pg);
+      pg.connect(aus);
+      pauke.start(t);
+      pauke.stop(t + 0.5);
+
+      const becken = ac.createBufferSource();
+      becken.buffer = rauschen;
+      becken.loop = true;
+      const hoch = ac.createBiquadFilter();
+      hoch.type = 'highpass';
+      hoch.frequency.value = 5200;
+      const bg = ac.createGain();
+      bg.gain.setValueAtTime(0.0001, t);
+      bg.gain.exponentialRampToValueAtTime(0.55, t + 0.01);
+      bg.gain.exponentialRampToValueAtTime(0.0001, t + 1.9);
+      becken.connect(hoch);
+      hoch.connect(bg);
+      bg.connect(aus);
+      becken.start(t);
+      becken.stop(t + 2);
+
+      const akkord = (start, dauer, laut) => {
+        const tief = ac.createBiquadFilter();
+        tief.type = 'lowpass';
+        tief.frequency.setValueAtTime(2600, start);
+        tief.frequency.exponentialRampToValueAtTime(1200, start + dauer);
+        const ag = ac.createGain();
+        ag.gain.setValueAtTime(0.0001, start);
+        ag.gain.exponentialRampToValueAtTime(laut, start + 0.025);
+        ag.gain.setValueAtTime(laut, start + dauer * 0.55);
+        ag.gain.exponentialRampToValueAtTime(0.0001, start + dauer);
+        tief.connect(ag);
+        ag.connect(aus);
+        [261.63, 329.63, 392.0, 523.25].forEach((hz, i) => {
+          const o = ac.createOscillator();
+          o.type = 'sawtooth';
+          o.frequency.value = hz;
+          o.detune.value = (i % 2 ? 6 : -6);
+          o.connect(tief);
+          o.start(start);
+          o.stop(start + dauer + 0.05);
+        });
+      };
+      akkord(t, 0.14, 0.1);
+      akkord(t + 0.19, 1.25, 0.13);
+    }
+
+    return { bereit, wirbelStart, wirbelStopp, tusch };
+  })();
+
+  $('tonTest').addEventListener('click', () => {
+    if (!ton.bereit()) {
+      frage('Dieses Gerät kann den Ton für die Ziehung nicht abspielen.', 'OK');
+      return;
+    }
+    ton.wirbelStart();
+    setTimeout(() => { ton.wirbelStopp(); ton.tusch(); }, 2500);
+  });
+
+  // ---------- Ziehung als Auftritt ----------
+  // Das Los ist da schon gezogen und gespeichert. Die Zahlen rollen nur für die Spannung,
+  // bis jemand "Aufdecken" antippt – dann steht die gezogene Nummer da.
+  let ziehRollen = null;
+  function ziehShow(p, nr, imTopf, wievielte) {
+    const d = $('ziehDialog');
+    const zahlFeld = $('ziehZahl');
+    $('ziehDach').textContent = p.ziehungen > 1 ? 'Ziehung ' + wievielte + ' von ' + p.ziehungen : 'Ziehung';
+    $('ziehPreis').textContent = p.name;
+    $('ziehUnter').textContent = zahl(imTopf) + (imTopf === 1 ? ' Los' : ' Lose') + ' im Topf';
+    $('ziehAufdecken').hidden = false;
+    $('ziehFertig').hidden = true;
+    // Gezeigt werden beim Rollen echte Losnummern aus dem Verkauf – bei wenigen Losen aufgefüllt, damit es nichts verrät.
+    const vorrat = stand.lose.filter((l) => !l.storno).map((l) => l.nr);
+    const hoechste = vorrat.reduce((m, n) => Math.max(m, n), 30);
+    while (vorrat.length < 12) vorrat.push(1 + Math.floor(Math.random() * hoechste));
+    zahlFeld.className = 'zieh-zahl ziffern rollt';
+    clearInterval(ziehRollen);
+    ziehRollen = setInterval(() => {
+      zahlFeld.textContent = T.nrText(vorrat[Math.floor(Math.random() * vorrat.length)]);
+    }, 70);
+    zahlFeld.textContent = T.nrText(vorrat[0]);
+    d.dataset.nr = String(nr);
+    if (!d.open) d.showModal();
+    $('ziehAufdecken').focus();
+    ton.wirbelStart();
+  }
+  $('ziehAufdecken').addEventListener('click', () => {
+    clearInterval(ziehRollen);
+    ziehRollen = null;
+    ton.wirbelStopp();
+    ton.tusch();
+    const zahlFeld = $('ziehZahl');
+    zahlFeld.textContent = T.nrText(Number($('ziehDialog').dataset.nr));
+    zahlFeld.className = 'zieh-zahl ziffern steht';
+    $('ziehUnter').textContent = 'Herzlichen Glückwunsch!';
+    $('ziehAufdecken').hidden = true;
+    $('ziehFertig').hidden = false;
+    $('ziehFertig').focus();
+  });
+  $('ziehFertig').addEventListener('click', () => $('ziehDialog').close());
+  // Solange die Zahlen rollen, lässt sich der Auftritt nicht mit "Esc" wegdrücken.
+  $('ziehDialog').addEventListener('cancel', (e) => { if (ziehRollen) e.preventDefault(); });
+  $('ziehDialog').addEventListener('close', () => { clearInterval(ziehRollen); ziehRollen = null; ton.wirbelStopp(); });
+
   // ---------- Ziehung ----------
   // Mit gemeinsamer Liste wird nur gezogen, wenn dieses Gerät gerade alle Lose der anderen geholt hat.
   async function vorZiehung() {
@@ -278,12 +486,15 @@
           const li = el('li');
           const neu = el('button', 'knopf leise', 'Neu ziehen');
           neu.addEventListener('click', async () => {
+            ton.bereit();   // direkt auf den Fingertipp, sonst bleibt das Gerät später stumm
             const text = 'Los Nr. ' + T.nrText(nr) + ' verfällt und es wird ein anderes gezogen. Nur verwenden, wenn der Preis nicht abgeholt wurde.';
             if (!await frage(text, 'Neu ziehen')) return;
             if (!await vorZiehung()) return;
             nachladen();
-            T.neuZiehen(stand, p, nr, rand01);
+            const imTopf = T.imTopf(stand, p.id).length;
+            const neueNr = T.neuZiehen(stand, p, nr, rand01);
             nachZiehung();
+            if (neueNr !== null) ziehShow(p, neueNr, imTopf, T.gezogene(stand, p.id).length);
           });
           li.append(el('span', 'nummer ziffern', 'Nr. ' + T.nrText(nr)), neu);
           ul.append(li);
@@ -301,11 +512,14 @@
       } else {
         knopf.textContent = p.ziehungen > 1 ? 'Ziehen (' + (gezogen.length + 1) + ' von ' + p.ziehungen + ')' : 'Ziehen';
         knopf.addEventListener('click', async () => {
+          ton.bereit();   // direkt auf den Fingertipp, sonst bleibt das Gerät später stumm
           if (!await frage('Jetzt für „' + p.name + '“ ziehen?', 'Ziehen')) return;
           if (!await vorZiehung()) return;
           nachladen();
-          T.ziehen(stand, p, rand01);
+          const imTopf = T.imTopf(stand, p.id).length;
+          const gezogeneNr = T.ziehen(stand, p, rand01);
           nachZiehung();
+          if (gezogeneNr !== null) ziehShow(p, gezogeneNr, imTopf, T.gezogene(stand, p.id).length);
         });
       }
       karte.append(knopf);
