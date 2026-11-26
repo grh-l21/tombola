@@ -2,10 +2,10 @@
 // die Stand-App am Tablet und ein schon einmal geöffnetes Los am Kundenhandy.
 // Mit Internet kommt immer die frische Fassung. Der Gerätespeicher springt ein, wenn keine Verbindung da ist
 // oder wenn sie länger als ein paar Sekunden braucht (schlechter Empfang am Stand).
-const CACHE = 'tombola-v14';
+const CACHE = 'tombola-v15';
 const FRIST = 4000;   // Millisekunden
 const ASSETS = [
-  './', 'index.html', 'los.html', 'gewinner.html', 'gewinner.js', 'stil.css', 'daten.js', 'logik.js', 'qr.js', 'stand.js', 'los.js', 'manifest.json',
+  './', 'index.html', 'los.html', 'stil.css', 'daten.js', 'logik.js', 'qr.js', 'stand.js', 'los.js', 'manifest.json',
   'fonts/Besley-VF.ttf', 'fonts/Playball-Regular.ttf',
   'motive/himmel.svg', 'motive/girlande.svg', 'motive/stern-gold.svg', 'motive/tasse.svg', 'motive/tanne.svg', 'motive/schnaitl.jpg', 'motive/vtr-logo.png'
 ];

@@ -180,26 +180,6 @@
     return 'imTopf';
   }
 
-  // Was die Seite mit den Gewinnnummern zeigt: je Preis die gezogenen Nummern.
-  function gewinnerListe(datei, preise) {
-    const gewinner = datei && Array.isArray(datei.gewinner) ? datei.gewinner : [];
-    const fertig = datei && Array.isArray(datei.fertig) ? datei.fertig : [];
-    return preise.map((p) => ({
-      id: p.id,
-      name: p.name,
-      ziehungen: p.ziehungen,
-      nummern: gewinner.filter((g) => g.topf === p.id).map((g) => g.nr),
-      fertig: fertig.includes(p.id)
-    }));
-  }
-
-  // Wurde diese Losnummer gezogen? Gibt den Preis zurück oder null.
-  function nummerSuchen(datei, preise, nr) {
-    const n = Number(nr);
-    const treffer = gewinnerListe(datei, preise).find((z) => z.nummern.includes(n));
-    return treffer ? preise.find((p) => p.id === treffer.id) : null;
-  }
-
   // Links, mit denen ein Kunde dem Verein sein Los schicken kann (E-Mail, WhatsApp).
   // Ohne gültige Adresse in daten.js gibt es keinen Link – und damit keinen Knopf am Los.
   function kontaktLinks(kontakt, betreff, text) {
@@ -451,7 +431,7 @@
     auslosen, pruefcode, verkaufen, stornieren,
     nrText, losLink, linkLesen,
     imTopf, gezogene, topfFertig, ziehen, neuZiehen,
-    gewinnerDatei, losStatus, gewinnerListe, nummerSuchen, kontaktLinks, losPruefen, statistik,
+    gewinnerDatei, losStatus, kontaktLinks, losPruefen, statistik,
     sicherung, sicherungLesen,
     bereich, teamCode, codeText, codeLesen, teamLink, nurAmGeraet,
     abgleichNeu, abgleichVormerken, abgleichOffen, abgleichAnfrage, abgleichAntwort, abgleichGeleert

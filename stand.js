@@ -526,16 +526,6 @@
       return karte;
     }));
     if (document.activeElement !== $('abholfrist')) $('abholfrist').value = config.abholfrist;
-
-    // Adresse und QR-Code der Seite mit den Gewinnnummern – sie liegt neben der Los-Seite.
-    const liste = new URL('gewinner.html', losSeite()).href;
-    if ($('listenQr').dataset.adresse !== liste) {
-      $('listenQr').innerHTML = QR.svg(liste);
-      $('listenQr').dataset.adresse = liste;
-    }
-    $('listenLink').textContent = nurDiesesGeraet()
-      ? 'Achtung: Diese Adresse führt auf „localhost“ und ist von Handys aus nicht erreichbar. Adresse in den Einstellungen eintragen.'
-      : liste;
   }
 
   $('abholfrist').addEventListener('change', (e) => {

@@ -309,7 +309,7 @@ body.los::after {
 .antippen { display: block; margin: -4px auto 12px; min-height: 44px; padding: 0 14px; border: 0; background: none; text-decoration: underline; text-underline-offset: 3px; color: rgba(29, 42, 92, 0.75); cursor: pointer; }
 .details { padding: 0 22px 20px; display: flex; flex-direction: column; gap: 10px; }
 .details .merken { border-left: 6px solid var(--f-gold); border-radius: 10px; padding: 10px 14px; background: #FBF8F0; font-size: 0.95em; }
-.details a:not(.knopf), .gewinn-seite a:not(.knopf) { color: var(--f-rot); font-weight: 700; overflow-wrap: anywhere; }
+.details a:not(.knopf) { color: var(--f-rot); font-weight: 700; overflow-wrap: anywhere; }
 .klein-text { font-size: 0.86em; color: var(--f-matt); }
 /* Kasten "Nicht bei der Ziehung dabei?": Los per E-Mail oder WhatsApp an den Verein schicken */
 .kontakt { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 16px; border: 1.5px solid var(--f-linie); border-radius: 14px; background: var(--f-papier); }
@@ -317,20 +317,6 @@ body.los::after {
 .kontakt .knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .kontakt .knopf { flex: 1 1 auto; min-height: 48px; text-decoration: none; font-size: 0.94em; }
 .kontakt small { font-size: 0.78em; line-height: 1.35; color: var(--f-matt); }
-
-/* Seite mit den Gewinnnummern */
-.gewinn-seite { display: flex; flex-direction: column; gap: 16px; padding: 22px 22px 24px; }
-.gewinnliste { list-style: none; }
-.gewinnliste li { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-top: 2px dashed rgba(29, 42, 92, 0.25); }
-.gewinnliste li:last-child { border-bottom: 2px dashed rgba(29, 42, 92, 0.25); }
-.gewinnliste .preis { font-weight: 700; }
-.gewinnliste .nummern { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 30px; color: var(--f-rot); }
-.gewinnliste .offen { font-size: 0.9em; color: var(--f-matt); }
-.nummer-pruefen h2 { font-size: 1.02em; font-weight: 800; }
-.nummer-pruefen .zeile { margin-bottom: 0; }
-.listen-qr { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 10px 0; }
-.listen-qr .qr { width: 190px; }
-.listen-qr .link-zeile { font-size: 0.9em; max-width: 30em; }
 
 .fuss { border-top: 3px dashed rgba(29, 42, 92, 0.3); padding: 12px 22px 14px; display: flex; justify-content: space-between; gap: 12px; font-size: 0.9em; }
 .fuss b { letter-spacing: 0.14em; }
