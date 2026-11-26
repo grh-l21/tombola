@@ -321,6 +321,9 @@
     const gezogen = Object.keys(stand.ziehung).length + Object.keys(stand.verfallen).length > 0;
     return {
       code, geraet: beitritt.geraet, name: beitritt.name || '', epoche: beitritt.epoche,
+      // Kennung der Liste und der eigene Schlüssel dieses Geräts: Damit weist es sich bei jedem Abgleich aus.
+      // codeV zählt, wie oft der Team-Code erneuert wurde; codeAlt = dieses Gerät kennt nur einen früheren Code.
+      raum: beitritt.raum, schluessel: beitritt.schluessel, codeV: beitritt.codeV || 0, codeAlt: false,
       cursor: 0, ziehungV: 0, configV: 0, kontakt: 0, geraete: [],
       offen: {
         lose: eigene.map((l) => l.nr),
@@ -347,6 +350,22 @@
   const abgleichOffen = (sync) =>
     sync.offen.lose.length > 0 || sync.offen.storno.length > 0 || ausOffen(sync).length > 0 || sync.offen.ziehung > 0 || sync.offen.config > 0;
 
+  // Womit sich dieses Gerät bei der Ablage ausweist: Kennung der Liste, Gerätenummer und eigener Schlüssel.
+  // Ein Merkzettel aus der Zeit davor hat nur den Team-Code – dann fordert das Gerät seinen Schlüssel an.
+  function abgleichWer(sync) {
+    const wer = sync.raum ? { raum: sync.raum, geraet: sync.geraet } : { code: sync.code, geraet: sync.geraet };
+    if (sync.schluessel) wer.schluessel = sync.schluessel;
+    else wer.will = 'schluessel';
+    return wer;
+  }
+
+  // Der Admin hat an diesem Gerät den Team-Code erneuert: Es kennt als einziges gleich den neuen.
+  function abgleichCodeNeu(sync, code, codeV) {
+    sync.code = code;
+    sync.codeV = codeV;
+    sync.codeAlt = false;
+  }
+
   // Was dieses Gerät der Ablage schickt.
   function abgleichAnfrage(sync, stand, config) {
     const paket = sync.offen.lose.slice(0, PAKET);
@@ -356,7 +375,7 @@
     const storno = sync.offen.storno.filter((nr) => !spaeter.includes(nr)).slice(0, PAKET);
     const aus = ausOffen(sync).filter((nr) => !spaeter.includes(nr)).slice(0, PAKET);
     const a = {
-      code: sync.code, geraet: sync.geraet, epoche: sync.epoche, seit: sync.cursor,
+      ...abgleichWer(sync), epoche: sync.epoche, seit: sync.cursor,
       lose: paket.filter((nr) => nachNr.has(nr)).map((nr) => {
         const { t, preis, erg, pruef } = nachNr.get(nr);
         return { nr, t, preis, erg, pruef };
@@ -452,6 +471,13 @@
       sync.configV = antwort.config.v;
     }
 
+    // Ein Gerät aus der Zeit vor den Schlüsseln bekommt hier seinen eigenen und die Kennung der Liste.
+    if (antwort.schluessel && !sync.schluessel) {
+      sync.schluessel = antwort.schluessel;
+      if (antwort.raum) sync.raum = antwort.raum;
+    }
+    // Hat der Admin den Team-Code an einem anderen Gerät erneuert, gilt der hier gemerkte nicht mehr zum Beitreten.
+    if (typeof antwort.codeV === 'number') sync.codeAlt = antwort.codeV !== (sync.codeV || 0);
     sync.cursor = antwort.cursor;
     sync.kontakt = jetzt;
     sync.geraete = antwort.geraete;
@@ -475,7 +501,7 @@
     gewinnerDatei, losStatus, kontaktLinks, losPruefen, ausgeben, statistik,
     sicherung, sicherungLesen,
     bereich, teamCode, codeText, codeLesen, teamLink, nurAmGeraet,
-    abgleichNeu, abgleichVormerken, abgleichOffen, abgleichAnfrage, abgleichAntwort, abgleichGeleert
+    abgleichNeu, abgleichVormerken, abgleichOffen, abgleichWer, abgleichCodeNeu, abgleichAnfrage, abgleichAntwort, abgleichGeleert
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Tombola = api;

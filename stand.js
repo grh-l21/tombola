@@ -559,11 +559,11 @@
     const liste = sync.geraete || [];
     $('geraeteListe').replaceChildren(...(liste.length ? liste : [{ nr: sync.geraet, name: sync.name, lose: 0, kontakt: 0 }]).map((g) => {
       const li = el('li');
-      const spaet = g.nr !== sync.geraet && jetzt - g.kontakt > 5 * 60 * 1000;
+      const spaet = g.nr !== sync.geraet && !g.weg && jetzt - g.kontakt > 5 * 60 * 1000;
       li.append(
         el('span', 'geraet', 'Gerät ' + g.nr + (g.name && g.name !== 'Gerät ' + g.nr ? ' · ' + g.name : '') + (g.nr === sync.geraet ? ' (dieses Gerät)' : '')),
         el('span', 'ziffern', zahl(g.lose) + (g.lose === 1 ? ' Los' : ' Lose')),
-        el('span', spaet ? 'spaet' : 'matt', g.kontakt ? (spaet ? 'zuletzt gemeldet ' : 'gemeldet ') + uhrzeit(g.kontakt) : 'noch nicht gemeldet')
+        el('span', spaet || g.weg ? 'spaet' : 'matt', g.weg ? 'entfernt' : g.kontakt ? (spaet ? 'zuletzt gemeldet ' : 'gemeldet ') + uhrzeit(g.kontakt) : 'noch nicht gemeldet')
       );
       return li;
     }));
@@ -882,7 +882,7 @@
         const antwort = await ruf('/v1/abgleich', anfrage);
         // Während der Anfrage kann hier verkauft oder in einem zweiten Fenster gespeichert worden sein.
         nachladen();
-        if (!sync || sync.code !== anfrage.code || sync.geraet !== anfrage.geraet) return false;
+        if (!sync || sync.geraet !== anfrage.geraet || (sync.raum || sync.code) !== (anfrage.raum || anfrage.code)) return false;
         const r = T.abgleichAntwort(sync, stand, config, anfrage, antwort, PREISE, Date.now());
         config = r.config;
         configSpeichern();
@@ -902,6 +902,7 @@
     }
   }
 
+  const ENTFERNT = 'Dieses Gerät wurde vom Admin aus der gemeinsamen Liste entfernt, oder der Team-Code wurde erneuert, bevor es die aktuelle App hatte.';
   const MELDUNGEN = {
     geleert: 'Die gemeinsame Liste wurde für alle Geräte geleert. Lose, die dieses Gerät erst danach verkauft hat, bleiben erhalten.',
     ziehungAbgelehnt: 'Ein anderes Gerät hat inzwischen gezogen. Die Ziehung dieses Geräts wurde verworfen – es gilt die des anderen Geräts.'
@@ -923,7 +924,11 @@
     const zuletzt = sync.kontakt ? 'zuletzt abgeglichen um ' + uhrzeit(sync.kontakt) : 'noch nicht abgeglichen';
     let text;
     let warn = true;
-    if (abgleichFehler === 'unbekannt' || abgleichFehler === 'geraet') {
+    if (abgleichFehler === 'entfernt') {
+      text = ENTFERNT + ' '
+        + (wartend ? zahl(wartend) + (wartend === 1 ? ' Los liegt' : ' Lose liegen') + ' nur auf diesem Gerät – bitte jetzt eine Sicherung exportieren. ' : 'Alle Lose dieses Geräts sind in der gemeinsamen Liste. ')
+        + 'Zum Weiterverkaufen unter Einstellungen die gemeinsame Liste verlassen.';
+    } else if (abgleichFehler === 'unbekannt' || abgleichFehler === 'geraet') {
       text = 'Die gemeinsame Liste kennt dieses Gerät nicht. Bitte unter Einstellungen die gemeinsame Liste verlassen und neu beitreten.';
     } else if (abgleichFehler) {
       text = 'Keine Verbindung zur gemeinsamen Liste (' + zuletzt + '). '
@@ -968,6 +973,10 @@
 
   function teamZeigen() {
     if (!sync) return;
+    if (sync.codeAlt) {
+      frage('Der Team-Code wurde vom Admin erneuert. Neue Geräte fügt jetzt das Gerät hinzu, an dem er erneuert wurde – dort unter Einstellungen „Gerät hinzufügen“.', 'OK');
+      return;
+    }
     // Der QR-Code führt zur Tombola im Internet – auch wenn die Liste an der Testadresse am Rechner angelegt wurde.
     const link = T.teamLink(DATEN.adresse, location.href, sync.code);
     $('teamQr').innerHTML = QR.svg(link);
@@ -1006,7 +1015,7 @@
     let anlegen;   // das Anlege-Passwort; gefragt wird erst, wenn die gemeinsame Liste eines verlangt
     for (;;) {
       try {
-        beitritt = await ruf('/v1/beitreten', anlegen === undefined ? { code, neu, name } : { code, neu, name, anlegen });
+        beitritt = await ruf('/v1/beitreten', { code, neu, name, will: 'schluessel', ...(anlegen === undefined ? {} : { anlegen }) });
         break;
       } catch (e) {
         if (neu && e.kurz === 'anlegen') {
@@ -1067,7 +1076,8 @@
     const text = 'Wirklich alle ' + zahl(stand.lose.length) + ' Lose und die Ziehung löschen – auf ALLEN Geräten der gemeinsamen Liste? Die Zählung beginnt überall neu.';
     if (!await frage(text, 'Für alle löschen')) return;
     try {
-      const r = await ruf('/v1/leeren', { code: sync.code, geraet: sync.geraet, epoche: sync.epoche });
+      const { will, ...wer } = T.abgleichWer(sync);
+      const r = await ruf('/v1/leeren', { ...wer, epoche: sync.epoche });
       nachladen();
       if (!sync) return;
       T.abgleichGeleert(sync, stand, r.epoche);
@@ -1075,12 +1085,104 @@
       zeichnen();
     } catch (e) {
       if (e.kurz !== 'veraltet') {
-        await frage('Das Leeren hat nicht geklappt. Dafür braucht dieses Gerät Verbindung zur gemeinsamen Liste.', 'OK');
+        await frage(e.kurz === 'entfernt' ? ENTFERNT + ' Es kann die gemeinsame Liste nicht mehr leeren.'
+          : 'Das Leeren hat nicht geklappt. Dafür braucht dieses Gerät Verbindung zur gemeinsamen Liste.', 'OK');
         return;
       }
     }
     abgleichen();
   }
+
+  // ---------- Verwalten (Admin): Gerät entfernen, Team-Code erneuern ----------
+  // Braucht das Anlege-Passwort. Es bleibt nur im Kopf dieses Fensters, solange der Admin-Bereich offen ist.
+  let adminPasswort = null;
+
+  async function adminRuf(mehr) {
+    const { will, ...wer } = T.abgleichWer(sync);
+    return ruf('/v1/verwalten', { ...wer, anlegen: adminPasswort, ...mehr });
+  }
+  const ADMIN_FEHLER = {
+    keinAdmin: 'Verwalten geht erst, wenn für die gemeinsame Liste ein Anlege-Passwort hinterlegt ist.',
+    alt: 'Dieses Gerät hat noch keinen eigenen Schlüssel von der gemeinsamen Liste bekommen. Bitte kurz warten, bis oben „zuletzt abgeglichen“ steht, und noch einmal versuchen.',
+    entfernt: ENTFERNT,
+    code: 'Der neue Team-Code ließ sich nicht vergeben. Bitte noch einmal versuchen.'
+  };
+  const adminFehlerText = (e) => ADMIN_FEHLER[e.kurz] || 'Das hat nicht geklappt. Bitte die Internet-Verbindung prüfen und noch einmal versuchen.';
+
+  function zeichneAdmin(geraete) {
+    $('adminListe').replaceChildren(...geraete.map((g) => {
+      const li = el('li');
+      const eigen = g.nr === sync.geraet;
+      const name = 'Gerät ' + g.nr + (g.name && g.name !== 'Gerät ' + g.nr ? ' · ' + g.name : '');
+      li.append(
+        el('span', 'geraet', name + (eigen ? ' (dieses Gerät)' : '')),
+        el('span', 'ziffern', zahl(g.lose) + (g.lose === 1 ? ' Los' : ' Lose')),
+        el('span', g.weg || g.alt ? 'spaet' : 'matt', g.weg ? 'entfernt' : g.alt ? 'ältere App – fliegt beim Erneuern des Codes hinaus' : g.kontakt ? 'gemeldet ' + uhrzeit(g.kontakt) : 'noch nicht gemeldet')
+      );
+      if (!eigen && !g.weg) {
+        const weg = el('button', 'knopf leise gefahr', 'Entfernen');
+        weg.type = 'button';
+        weg.setAttribute('aria-label', name + ' entfernen');
+        weg.addEventListener('click', () => adminAendern('entfernen', g, name));
+        li.append(weg);
+      }
+      return li;
+    }));
+  }
+
+  // Entfernt ein Gerät oder erneuert nur den Team-Code. Beides vergibt einen neuen Code; die Lose bleiben, wo sie sind.
+  async function adminAendern(aktion, g, name) {
+    const text = aktion === 'entfernen'
+      ? name + ' aus der gemeinsamen Liste entfernen? Es kann danach nichts mehr abgeben oder abholen. '
+        + 'Die Lose, die es schon abgegeben hat (' + zahl(g.lose) + '), bleiben in der Liste. '
+        + 'Dabei wird auch der Team-Code erneuert – neue Geräte kommen nur noch mit dem neuen Code herein.'
+      : 'Team-Code erneuern? Mit dem bisherigen Code kann danach niemand mehr beitreten. '
+        + 'Geräte, die schon dabei sind, verkaufen weiter; alle Lose bleiben. Neue Geräte fügst du danach an diesem Gerät hinzu.';
+    if (!await frage(text, aktion === 'entfernen' ? 'Entfernen' : 'Erneuern')) return;
+    nachladen();
+    if (!sync) return;
+    const neuerCode = T.teamCode(rand01);
+    let r;
+    try {
+      r = await adminRuf(aktion === 'entfernen' ? { aktion, ziel: g.nr, neuerCode } : { aktion: 'code', neuerCode });
+    } catch (e) {
+      await frage(adminFehlerText(e), 'OK');
+      return;
+    }
+    nachladen();
+    if (!sync) return;
+    T.abgleichCodeNeu(sync, neuerCode, r.codeV);
+    sync.geraete = r.geraete;
+    syncSpeichern();
+    zeichneAdmin(r.geraete);
+    zeichnen();
+    await frage((aktion === 'entfernen' ? name + ' ist entfernt. ' : '') + 'Der neue Team-Code gilt ab sofort. Unter „Gerät hinzufügen“ zeigt dieses Gerät ihn an.', 'OK');
+  }
+
+  $('verwalten').addEventListener('click', async () => {
+    nachladen();
+    if (!sync) return;
+    let text = 'Admin-Bereich: Geräte entfernen oder den Team-Code erneuern. Bitte das Anlege-Passwort eingeben.';
+    for (;;) {
+      adminPasswort = await passwortFragen(text);
+      if (adminPasswort === null) return;
+      try {
+        const r = await adminRuf({ aktion: 'pruefen' });
+        zeichneAdmin(r.geraete);
+        break;
+      } catch (e) {
+        if (e.kurz === 'anlegen') { text = 'Das Passwort stimmt nicht. Bitte noch einmal eingeben.'; continue; }
+        adminPasswort = null;
+        await frage(adminFehlerText(e), 'OK');
+        return;
+      }
+    }
+    $('adminDialog').showModal();
+    $('adminFertig').focus();
+  });
+  $('adminCode').addEventListener('click', () => adminAendern('code'));
+  $('adminFertig').addEventListener('click', () => $('adminDialog').close());
+  $('adminDialog').addEventListener('close', () => { adminPasswort = null; $('adminListe').replaceChildren(); });
 
   function zeichneListe() {
     $('listeNeu').hidden = !ABLAGE || !!sync;

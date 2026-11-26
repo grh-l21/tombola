@@ -145,6 +145,7 @@
     </form>
     <div class="zeile" id="listeDabei" hidden>
       <button class="knopf" id="geraetHinzu">Gerät hinzufügen</button>
+      <button class="knopf" id="verwalten">Verwalten (Admin)</button>
       <button class="knopf leise" id="listeVerlassen">Gemeinsame Liste verlassen</button>
     </div>
 
@@ -223,6 +224,19 @@
       <button class="knopf rot" value="ja" id="beitrittJa">Beitreten</button>
     </div>
   </form>
+</dialog>
+
+<!-- Admin-Bereich der gemeinsamen Liste: Geräte entfernen, Team-Code erneuern -->
+<dialog id="adminDialog" aria-labelledby="adminTitel">
+  <div class="frage admin">
+    <div class="block" id="adminTitel">Gemeinsame Liste verwalten</div>
+    <p class="klein-text">Ein entferntes Gerät kann nichts mehr abgeben oder abholen. Was es schon abgegeben hat, bleibt in der Liste. Mit jedem Entfernen wird auch der Team-Code erneuert.</p>
+    <ul class="liste" id="adminListe"></ul>
+    <div class="zeile">
+      <button class="knopf" id="adminCode">Team-Code erneuern</button>
+      <button class="knopf rot" id="adminFertig">Fertig</button>
+    </div>
+  </div>
 </dialog>
 
 <!-- Neue gemeinsame Liste: Anlege-Passwort des Vereins -->
