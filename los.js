@@ -83,17 +83,15 @@
       };
     }
     return {
-      motiv: 'stern-gold', stufe: 'gross', gewinn: true, liste: true, dach: 'Du bist im Lostopf für', gross: preis.topf,
-      text: ['Dein Los ' + nr + ' nimmt an der Ziehung teil. ' + DATEN.ziehung],
-      merken: 'Diese Seite ist dein Los. Speichere sie als Lesezeichen oder mach einen Screenshot – nach der Ziehung siehst du hier, ob du gewonnen hast.'
+      motiv: 'stern-gold', stufe: 'gross', gewinn: true, dach: 'Du bist im Lostopf für', gross: preis.topf,
+      text: ['Dein Los ' + nr + ' nimmt an der Ziehung teil. ' + DATEN.ziehung]
     };
   }
 
-  // Die Gewinnnummern stehen auch auf einer eigenen Seite – für alle, die nur einen Screenshot haben.
-  // Die Adresse steht ausgeschrieben da, damit sie auch am Screenshot zu lesen ist.
-  function listenHinweis(status) {
+  // Nach der Ziehung stehen die Gewinnnummern auch auf einer eigenen Seite.
+  function listenHinweis() {
     const adresse = new URL('gewinner.html', location.href);
-    const p = el('p', 'klein-text', status === 'imTopf' ? 'Alle Gewinnnummern stehen nach der Ziehung auch auf ' : 'Alle Gewinnnummern: ');
+    const p = el('p', 'klein-text', 'Alle Gewinnnummern: ');
     const a = el('a', '', adresse.host + adresse.pathname);
     a.href = adresse.pathname.split('/').pop();
     p.append(a);
@@ -127,6 +125,218 @@
     return kasten;
   }
 
+  // ---------- Los als Bild speichern ----------
+  // Wer ein Los im Topf hat, kann es als Bild aufheben: mit Losnummer, Prüfcode, Preis
+  // und einem QR-Code, der das Los wieder öffnet.
+  // Am iPhone und iPad öffnet sich das Teilen-Fenster ("Bild sichern" für die Fotos, "In Dateien sichern"),
+  // auf anderen Geräten lädt der Browser das Bild herunter.
+  const bildName = 'Los-' + T.nrText(los.nr) + '-' + DATEN.titel.replace(/[^A-Za-z0-9ÄÖÜäöüß]+/g, '-') + '.png';
+  const apfelGeraet = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  function bildLaden(src) {
+    return new Promise((fertig) => {
+      const b = new Image();
+      b.onload = () => fertig(b);
+      b.onerror = () => fertig(null);
+      b.src = src;
+    });
+  }
+
+  function umbrechen(c, text, breite) {
+    const zeilen = [];
+    let zeile = '';
+    String(text).split(/\s+/).forEach((wort) => {
+      const probe = zeile ? zeile + ' ' + wort : wort;
+      if (zeile && c.measureText(probe).width > breite) { zeilen.push(zeile); zeile = wort; } else zeile = probe;
+    });
+    if (zeile) zeilen.push(zeile);
+    return zeilen;
+  }
+
+  async function losBild(status, datei) {
+    const B = 1080;
+    const H = 1500;
+    const cv = document.createElement('canvas');
+    cv.width = B;
+    cv.height = H;
+    const c = cv.getContext('2d');
+    const block = (gr, gewicht) => (gewicht || 800) + ' ' + gr + 'px "Besley", Georgia, serif';
+    const schwung = (gr) => gr + 'px "Playball", "Besley", cursive';
+    try {
+      await Promise.all([document.fonts.load(block(60)), document.fonts.load(block(60, 600)), document.fonts.load(schwung(60))]);
+    } catch (e) { /* dann eben mit der Ersatzschrift */ }
+    const logo = await bildLaden('motive/vtr-logo.png');
+    const rund = (x, y, w, h, r) => { c.beginPath(); c.roundRect(x, y, w, h, r); };
+
+    // Nachthimmel mit ein paar Schneeflocken
+    const himmel = c.createLinearGradient(0, 0, 0, H);
+    himmel.addColorStop(0, '#10184A');
+    himmel.addColorStop(1, '#2B3375');
+    c.fillStyle = himmel;
+    c.fillRect(0, 0, B, H);
+    c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    [[90, 60, 4], [300, 30, 3], [520, 80, 5], [760, 40, 3], [980, 100, 4], [1010, 300, 3], [40, 320, 4], [30, 900, 3],
+      [1050, 760, 4], [1045, 1200, 3], [35, 1300, 4], [500, 1470, 3], [860, 1465, 4], [160, 1460, 3]].forEach((s) => {
+      c.beginPath();
+      c.arc(s[0], s[1], s[2], 0, Math.PI * 2);
+      c.fill();
+    });
+
+    // Kopf
+    c.textAlign = 'left';
+    c.textBaseline = 'alphabetic';
+    c.fillStyle = '#F6DC8C';
+    c.font = schwung(60);
+    c.fillText('Dein Los bei der', 70, 125);
+    c.fillStyle = '#FBF3DC';
+    let gr = 96;
+    c.font = block(gr);
+    while (gr > 50 && c.measureText(DATEN.titel).width > B - 140) { gr -= 4; c.font = block(gr); }
+    c.fillText(DATEN.titel, 70, 225);
+    c.font = block(36, 600);
+    c.fillText(DATEN.verein || '', 70, 290);
+    if (logo) c.drawImage(logo, B - 70 - 220, 254, 220, 220 * logo.height / logo.width);
+
+    // Das Los: helle Karte mit rotem Kopf
+    const kx = 60;
+    const ky = 360;
+    const kb = B - 120;
+    const kh = H - ky - 70;
+    c.save();
+    rund(kx, ky, kb, kh, 44);
+    c.clip();
+    c.fillStyle = '#FBF8F0';
+    c.fillRect(kx, ky, kb, kh);
+    c.fillStyle = '#B8191F';
+    c.fillRect(kx, ky, kb, 170);
+    c.restore();
+    c.fillStyle = '#F6DC8C';
+    c.font = schwung(64);
+    c.fillText('Dein Los', kx + 50, ky + 110);
+    c.fillStyle = '#FBF3DC';
+    c.font = block(98);
+    c.textAlign = 'right';
+    c.fillText(nr, kx + kb - 50, ky + 120);
+    c.strokeStyle = 'rgba(29, 42, 92, 0.3)';
+    c.lineWidth = 4;
+    c.setLineDash([16, 12]);
+    c.beginPath();
+    c.moveTo(kx + 30, ky + 170 + 26);
+    c.lineTo(kx + kb - 30, ky + 170 + 26);
+    c.stroke();
+    c.setLineDash([]);
+
+    // Wofür das Los gilt
+    const gewonnen = status === 'gewonnen';
+    c.textAlign = 'center';
+    let y = ky + 170 + 110;
+    c.fillStyle = '#B8191F';
+    c.font = block(34, 700);
+    c.fillText((gewonnen ? 'Dein Los wurde gezogen' : 'Im Lostopf für').toUpperCase(), B / 2, y);
+    const name = gewonnen ? preis.name : preis.topf;
+    gr = 88;
+    c.font = block(gr);
+    let zeilen = umbrechen(c, name, kb - 120);
+    while (zeilen.length > 2 && gr > 48) { gr -= 6; c.font = block(gr); zeilen = umbrechen(c, name, kb - 120); }
+    c.fillStyle = '#1D2A5C';
+    y += 30;
+    zeilen.forEach((z) => { y += gr * 1.12; c.fillText(z, B / 2, y); });
+    const frist = datei && datei.abholfrist ? ' Abholung: ' + datei.abholfrist + '.' : '';
+    const info = gewonnen ? 'Herzlichen Glückwunsch! Hol deinen Gewinn am Stand ab.' + frist : DATEN.ziehung;
+    c.font = block(34, 500);
+    c.fillStyle = '#3A456F';
+    y += 34;
+    umbrechen(c, info, kb - 140).slice(0, 3).forEach((z) => { y += 48; c.fillText(z, B / 2, y); });
+
+    // Unten: QR-Code, der das Los wieder öffnet, daneben Losnummer und Prüfcode
+    const qg = 320;
+    const qx = kx + 60;
+    const qy = ky + kh - 60 - qg;
+    let qrDa = false;
+    try {
+      const q = window.QR.matrix(location.href);
+      const rand = 3;
+      const modul = Math.floor(qg / (q.n + 2 * rand));
+      const groesse = modul * (q.n + 2 * rand);
+      c.fillStyle = '#FFFFFF';
+      rund(qx, qy, groesse, groesse, 14);
+      c.fill();
+      c.fillStyle = '#000000';
+      for (let zy = 0; zy < q.n; zy++) {
+        for (let zx = 0; zx < q.n; zx++) {
+          if (q.m[zy][zx]) c.fillRect(qx + (zx + rand) * modul, qy + (zy + rand) * modul, modul, modul);
+        }
+      }
+      qrDa = true;
+    } catch (e) { /* ohne QR-Code geht es auch */ }
+    const tx = qrDa ? qx + qg + 50 : kx + 60;
+    c.textAlign = 'left';
+    c.fillStyle = '#59628A';
+    c.font = block(30, 600);
+    c.fillText('PRÜFCODE', tx, qy + 44);
+    c.fillStyle = '#1D2A5C';
+    c.font = block(104);
+    c.fillText(los.pruef, tx, qy + 150);
+    c.fillStyle = '#3A456F';
+    c.font = block(28, 500);
+    let ty = qy + 200;
+    umbrechen(c, 'Für die Abholung brauchst du Losnummer und Prüfcode.' + (qrDa ? ' Der QR-Code öffnet dein Los wieder.' : ''), kx + kb - 50 - tx)
+      .forEach((z) => { c.fillText(z, tx, ty); ty += 38; });
+
+    return new Promise((fertig) => cv.toBlob(fertig, 'image/png'));
+  }
+
+  function speicherKasten(status, datei) {
+    if (status !== 'imTopf' && status !== 'gewonnen') return null;
+    const kasten = el('div', 'kontakt');
+    kasten.append(
+      el('h2', '', 'Heb dein Los gut auf'),
+      el('p', '', 'Für einen Gewinn brauchst du Losnummer und Prüfcode. Speichere dein Los als Bild am Handy.')
+    );
+    const knopf = el('button', 'knopf rot', 'Los speichern');
+    knopf.type = 'button';
+    const hinweis = el('small', '', apfelGeraet
+      ? 'Im nächsten Fenster „Bild sichern“ wählen (kommt in die Fotos) oder „In Dateien sichern“.'
+      : 'Das Bild wird auf dein Handy heruntergeladen und liegt dann bei den Downloads.');
+    // Das Bild entsteht schon vorab – das Teilen-Fenster öffnet sich nur direkt auf den Fingertipp hin.
+    let bild = null;
+    const vorbereiten = () => {
+      if (!bild) {
+        bild = losBild(status, datei)
+          .then((blob) => (blob ? new File([blob], bildName, { type: 'image/png' }) : null))
+          .catch(() => null);
+      }
+      return bild;
+    };
+    setTimeout(vorbereiten, 300);
+    knopf.addEventListener('click', async () => {
+      const fertig = await vorbereiten();
+      if (!fertig) {
+        hinweis.textContent = 'Das Bild ließ sich nicht erstellen. Bitte mach stattdessen einen Screenshot von dieser Seite.';
+        return;
+      }
+      if (apfelGeraet && navigator.canShare && navigator.canShare({ files: [fertig] })) {
+        try {
+          await navigator.share({ files: [fertig] });
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;   // Fenster ohne Auswahl geschlossen
+        }
+      }
+      const a = el('a');
+      a.href = URL.createObjectURL(fertig);
+      a.download = bildName;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
+    const knoepfe = el('div', 'knoepfe');
+    knoepfe.append(knopf);
+    kasten.append(knoepfe, hinweis);
+    return kasten;
+  }
+
   function fuellen(status, datei) {
     const i = inhalt(status, datei);
     $('ergebnis').classList.toggle('gewinn', !!i.gewinn);
@@ -143,7 +353,9 @@
     if (ohneNetz && status === 'imTopf') {
       details.append(el('p', 'klein-text', 'Gerade keine Verbindung: Ob dein Los schon gezogen wurde, siehst du hier erst wieder mit Internet.'));
     }
-    if (i.liste) details.append(listenHinweis(status));
+    if (i.liste) details.append(listenHinweis());
+    const speichern = speicherKasten(status, datei);
+    if (speichern) details.append(speichern);
     const kasten = kontaktKasten(status);
     if (kasten) details.append(kasten);
     if (i.bild) {
