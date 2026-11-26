@@ -27,6 +27,11 @@
       { id: 'stella', name: '2 Karten für Pavlo Stella',   topf: '2 Karten für Pavlo Stella',   ziehungen: 1 }
     ]
   };
+  // Die Tombola ist umgezogen. Wer noch die frühere Adresse öffnet (github.io), wird zur neuen geschickt –
+  // samt dem Teil nach dem #, in dem das Los oder der Team-Code steckt.
+  if (typeof location !== 'undefined' && /(^|\.)github\.io$/.test(location.hostname) && DATEN.adresse) {
+    location.replace(DATEN.adresse.replace(/\/?$/, '/') + location.pathname.split('/').pop() + location.search + location.hash);
+  }
   if (typeof module === 'object' && module.exports) module.exports = DATEN;
   else root.TOMBOLA_DATEN = DATEN;
 })(typeof self !== 'undefined' ? self : this);
