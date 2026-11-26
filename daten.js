@@ -14,6 +14,8 @@
       mail: 'gregor.hoeller.vtr@gmail.com',
       whatsapp: '+436648543200'    // Handynummer mit Ländervorwahl
     },
+    // Adresse der Stand-App im Internet. Dorthin führt der QR-Code "Gerät hinzufügen".
+    adresse: 'https://grh-l21.github.io/tombola/',
     // Adresse der gemeinsamen Liste für mehrere Verkaufsgeräte (das Programm im Ordner "ablage", bei Cloudflare).
     // Leer = jedes Gerät verkauft nur für sich.
     ablage: 'https://tombola-ablage.tombola-ablage.workers.dev',

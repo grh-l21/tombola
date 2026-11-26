@@ -283,6 +283,23 @@
     return new RegExp('^[' + CODE_ZEICHEN + ']{' + TEAM_LAENGE + '}$').test(c) ? c : null;
   }
 
+  // Der Link im QR-Code "Gerät hinzufügen": die Internet-Adresse der Tombola (daten.js) mit dem Team-Code.
+  // Ist keine hinterlegt, gilt die Adresse, unter der die App gerade läuft.
+  function teamLink(adresse, seite, code) {
+    const fest = String(adresse || '').trim();
+    const basis = fest ? fest.replace(/\/?$/, '/') : new URL('./', seite).href;
+    return basis.split('#')[0].split('?')[0] + '#team=' + code;
+  }
+
+  // "localhost" ist nur am selben Gerät erreichbar – ein Handy kommt dort nicht hin.
+  function nurAmGeraet(adresse) {
+    try {
+      return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(new URL(adresse).hostname);
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Diese Einstellungen gelten für alle Geräte gemeinsam. Die Adresse der Los-Seite bleibt je Gerät.
   function gemeinsameConfig(config) {
     const { preis, quoteGluehwein, quoteBier, quoteTopf, gewichte, abholfrist } = config;
@@ -436,7 +453,7 @@
     imTopf, gezogene, topfFertig, ziehen, neuZiehen,
     gewinnerDatei, losStatus, gewinnerListe, nummerSuchen, kontaktLinks, losPruefen, statistik,
     sicherung, sicherungLesen,
-    bereich, teamCode, codeText, codeLesen,
+    bereich, teamCode, codeText, codeLesen, teamLink, nurAmGeraet,
     abgleichNeu, abgleichVormerken, abgleichOffen, abgleichAnfrage, abgleichAntwort, abgleichGeleert
   };
   if (typeof module === 'object' && module.exports) module.exports = api;

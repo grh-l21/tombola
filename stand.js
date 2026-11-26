@@ -612,8 +612,12 @@
 
   function teamZeigen() {
     if (!sync) return;
-    const link = new URL('./', location.href).href.split('#')[0] + '#team=' + sync.code;
+    // Der QR-Code führt zur Tombola im Internet – auch wenn die Liste an der Testadresse am Rechner angelegt wurde.
+    const link = T.teamLink(DATEN.adresse, location.href, sync.code);
     $('teamQr').innerHTML = QR.svg(link);
+    $('teamAdresse').textContent = T.nurAmGeraet(link)
+      ? 'Achtung: Dieser QR-Code führt auf „localhost“ und ist von Handys aus nicht erreichbar.'
+      : 'Führt zu ' + link.split('#')[0];
     $('teamCodeText').textContent = T.codeText(sync.code);
     $('teamDialog').showModal();
     $('teamFertig').focus();
@@ -742,6 +746,12 @@
   }
 
   $('titel').textContent = DATEN.titel;
+  // Unter "localhost" läuft nur die Testfassung am Rechner. Wer hier verkauft, bekommt QR-Codes, die kein Handy öffnen kann.
+  if (T.nurAmGeraet(location.href)) {
+    $('testHinweisText').textContent = 'Das ist die Testfassung am Rechner. Lose von hier lassen sich am Handy nicht öffnen.'
+      + (DATEN.adresse ? ' Die echte Tombola läuft unter ' + DATEN.adresse : '');
+    $('testHinweis').hidden = false;
+  }
   $('speicherWarnung').hidden = speicherOk;
   zeichnen();
   setInterval(zeichneHinweis, 60000);
