@@ -48,12 +48,21 @@ button, input { font: inherit; color: inherit; }
   border: 2px solid var(--f-nacht); border-radius: 12px;
   background: var(--f-papier); color: var(--f-nacht);
   font-weight: 700; font-size: 1em;
-  cursor: pointer; touch-action: manipulation;
+  cursor: pointer; touch-action: manipulation; transition: transform 0.12s, filter 0.12s;
   transition: transform 0.06s, filter 0.06s;
 }
 .knopf:active:not(:disabled) { transform: translateY(2px); filter: brightness(0.92); }
 .knopf:disabled { opacity: 0.45; cursor: default; }
-.knopf:focus-visible, .reiter button:focus-visible, input:focus-visible { outline: 3px solid var(--f-fokus); outline-offset: 3px; }
+/* Wer mit Tastatur bedient, sieht an jedem Knopf, Link und Feld, wo er gerade steht. */
+button:focus-visible, a:focus-visible, input:focus-visible, canvas:focus-visible { outline: 3px solid var(--f-fokus); outline-offset: 3px; }
+.knopf.gefahr { border-color: var(--f-rot); color: var(--f-rot); }
+/* Mit Maus oder Trackpad antwortet jeder Knopf auf den Zeiger. */
+@media (hover: hover) {
+  .knopf:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(0.96); }
+  .reiter button:hover:not([aria-selected="true"]) { background: rgba(251, 243, 220, 0.16); }
+  .verkauf-knopf:hover { filter: brightness(1.06); }
+  .liste .eintrag:hover { background: rgba(29, 42, 92, 0.05); }
+}
 .knopf.rot { background: var(--f-rot); border-color: var(--f-rot); color: var(--f-creme-hell); }
 .knopf.leise { min-height: 44px; border-width: 1.5px; border-color: rgba(29, 42, 92, 0.4); background: transparent; font-weight: 600; }
 
@@ -63,7 +72,7 @@ button, input { font: inherit; color: inherit; }
 .stand .kopf {
   position: relative;
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px;
-  padding: 64px clamp(16px, 3vw, 32px) 34px;
+  padding: calc(64px + env(safe-area-inset-top)) max(clamp(16px, 3vw, 32px), env(safe-area-inset-right)) 34px max(clamp(16px, 3vw, 32px), env(safe-area-inset-left));
   color: var(--f-creme-hell);
   background:
     url("motive/girlande.svg") top center / max(100%, 900px) auto no-repeat,
@@ -97,13 +106,16 @@ button, input { font: inherit; color: inherit; }
 }
 
 .hinweis {
-  margin: 16px clamp(16px, 3vw, 32px) 0; padding: 12px 16px;
+  margin: 16px max(clamp(16px, 3vw, 32px), env(safe-area-inset-right)) 0 max(clamp(16px, 3vw, 32px), env(safe-area-inset-left)); padding: 12px 16px;
   border: 1.5px solid var(--f-linie); border-left: 8px solid var(--f-gold); border-radius: 14px; background: var(--f-papier);
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px;
 }
 .hinweis.warn { border-left-color: var(--f-rot); }
 
-.stand main { padding: clamp(16px, 3vw, 32px); max-width: 1100px; margin: 0 auto; }
+.stand main {
+  padding: clamp(16px, 3vw, 32px) max(clamp(16px, 3vw, 32px), env(safe-area-inset-right)) calc(clamp(16px, 3vw, 32px) + env(safe-area-inset-bottom)) max(clamp(16px, 3vw, 32px), env(safe-area-inset-left));
+  max-width: 1100px; margin: 0 auto;
+}
 .stand h2 { font-size: 0.95em; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--f-rot); margin: 30px 0 10px; }
 .stand p.text { max-width: 62ch; margin: 8px 0; }
 
@@ -136,6 +148,13 @@ button, input { font: inherit; color: inherit; }
 .liste li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; }
 .liste li + li { border-top: 1px solid var(--f-linie); }
 .liste .leer { color: var(--f-matt); }
+.liste li:has(> .eintrag) { padding: 0; }
+.liste .eintrag {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 10px 16px;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; touch-action: manipulation;
+}
+.liste .eintrag::after { content: "›"; font-size: 1.3em; line-height: 1; color: var(--f-matt); }
+.liste .eintrag:focus-visible { outline-offset: -4px; }
 .liste .storno { text-decoration: line-through; color: var(--f-matt); }
 .liste .nr { font-weight: 800; min-width: 5.2em; }
 .liste .zeit { color: var(--f-matt); min-width: 3.6em; }
@@ -188,7 +207,7 @@ dialog::backdrop { background: rgba(16, 24, 74, 0.93); }
 .qr-seite .block { font-size: clamp(28px, 4.2vw, 42px); color: var(--f-rot); }
 .qr { width: min(100%, 52vh, 420px); aspect-ratio: 1; padding: 10px; border: 1.5px solid var(--f-linie); border-radius: 16px; background: #fff; }
 .qr svg { display: block; width: 100%; height: 100%; }
-.link-zeile { font-size: 0.66em; color: var(--f-matt); word-break: break-all; max-width: 34em; }
+.link-zeile { font-size: 0.76em; color: var(--f-matt); word-break: break-all; max-width: 34em; }
 .seller-seite { display: flex; flex-direction: column; gap: 14px; }
 .losnummer { font-size: 1.05em; }
 .losnummer b { font-weight: 800; font-size: 50px; line-height: 1.05; display: block; }
@@ -200,7 +219,7 @@ dialog::backdrop { background: rgba(16, 24, 74, 0.93); }
   outline: 2.5px dashed rgba(29, 42, 92, 0.5); outline-offset: -10px;
   cursor: pointer; touch-action: manipulation; font-weight: 800; font-size: 1.15em;
 }
-.verdeckt small { font-weight: 600; font-size: 0.72em; }
+.verdeckt small { font-weight: 600; font-size: 0.8em; }
 .verdeckt .block { font-size: clamp(26px, 3.6vw, 40px); }
 .verdeckt.offen { outline: 0; cursor: default; font-size: 1em; background: #E6E0D1; box-shadow: inset 0 0 0 3px rgba(29, 42, 92, 0.14); }
 .verdeckt.offen .block { color: var(--f-rot); }
@@ -218,7 +237,7 @@ dialog::backdrop { background: rgba(16, 24, 74, 0.93); }
 body.los {
   position: relative; overflow-x: hidden;
   display: flex; flex-direction: column; align-items: center;
-  padding: 0 14px 48px;
+  padding: env(safe-area-inset-top) max(14px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
   background: none; color: var(--f-creme-hell);
   font-size: 17px;
 }
@@ -249,7 +268,7 @@ body.los::after {
 .los-kopf .schwung { color: var(--f-gold-hell); font-size: 27px; line-height: 1; }
 /* Der Titel soll in eine Zeile passen: Die Schrift ist rund 10,4-mal so breit wie hoch. */
 .los-kopf h1 { font-size: min(38px, calc((100vw - 44px) / 10.4)); letter-spacing: -0.02em; white-space: nowrap; color: var(--f-creme-hell); margin-top: 6px; }
-.los-kopf .verein { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; margin-top: 10px; font-weight: 600; font-size: 13px; color: var(--f-creme-hell); }
+.los-kopf .verein { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; margin-top: 10px; font-weight: 600; font-size: 14px; color: var(--f-creme-hell); }
 .los-kopf .logo { display: block; height: 32px; width: auto; }
 
 .los .karte { width: min(100%, 430px); border-radius: 20px; background: var(--f-creme); color: var(--f-nacht); overflow: hidden; }
@@ -316,7 +335,7 @@ body.los::after {
 .kontakt h2 { font-size: 1.02em; font-weight: 800; line-height: 1.25; }
 .kontakt .knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .kontakt .knopf { flex: 1 1 auto; min-height: 48px; text-decoration: none; font-size: 0.94em; }
-.kontakt small { font-size: 0.78em; line-height: 1.35; color: var(--f-matt); }
+.kontakt small { font-size: 0.84em; line-height: 1.35; color: var(--f-matt); }
 
 .fuss { border-top: 3px dashed rgba(29, 42, 92, 0.3); padding: 12px 22px 14px; display: flex; justify-content: space-between; gap: 12px; font-size: 0.9em; }
 .fuss b { letter-spacing: 0.14em; }
@@ -517,3 +536,12 @@ body.los::after {
 #ziehDialog .knopf:not(.rot) { background: transparent; color: var(--f-creme-hell); border-color: rgba(251, 243, 220, 0.7); }
 @keyframes ziehZittern { 0% { transform: translateY(-2px); } 50% { transform: translateY(2px); } 100% { transform: translateY(-2px); } }
 @keyframes ziehKnall { 0% { transform: scale(0.55); opacity: 0.3; } 100% { transform: scale(1); opacity: 1; } }
+
+/* ---------- Am Handy: Knöpfe und breite Felder über die ganze Breite ---------- */
+@media (max-width: 560px) {
+  .stand main .zeile > .knopf { flex: 1 1 100%; }
+  .stand main .zeile > .feld:has(input.breit) { flex: 1 1 100%; }
+  .stand main .feld input.breit { width: 100%; }
+  .frage .zeile > .knopf { flex: 1 1 0; }
+  .seller-seite .zeile > .knopf { flex: 1 1 0; }
+}

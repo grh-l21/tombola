@@ -120,11 +120,25 @@
   // ---------- Reiter ----------
   const reiter = Array.from(document.querySelectorAll('.reiter button'));
   function zeige(ansicht) {
-    reiter.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.ansicht === ansicht)));
+    reiter.forEach((b) => {
+      const an = b.dataset.ansicht === ansicht;
+      b.setAttribute('aria-selected', String(an));
+      b.tabIndex = an ? 0 : -1;
+    });
     ['verkauf', 'ziehung', 'einstellungen'].forEach((id) => { $(id).hidden = id !== ansicht; });
     zeichnen();
   }
   reiter.forEach((b) => b.addEventListener('click', () => zeige(b.dataset.ansicht)));
+  // Mit den Pfeiltasten von Reiter zu Reiter, wie bei Reitern üblich.
+  document.querySelector('.reiter').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const i = reiter.indexOf(document.activeElement);
+    if (i < 0) return;
+    const ziel = reiter[(i + (e.key === 'ArrowRight' ? 1 : reiter.length - 1)) % reiter.length];
+    ziel.focus();
+    zeige(ziel.dataset.ansicht);
+    e.preventDefault();
+  });
 
   // ---------- Verkauf ----------
   let offenesLos = null;
@@ -215,17 +229,29 @@
 
     const letzte = stand.lose.slice(-6).reverse();
     const liste = $('letzte');
+    $('letzteHinweis').hidden = !letzte.some((los) => !los.storno);
     if (!letzte.length) {
       liste.replaceChildren(el('li', 'leer', 'Noch kein Los verkauft.'));
       return;
     }
     liste.replaceChildren(...letzte.map((los) => {
       const li = el('li', los.storno ? 'storno' : '');
-      li.append(
+      const teile = [
         el('span', 'nr ziffern', 'Nr. ' + T.nrText(los.nr)),
         el('span', 'zeit ziffern', uhrzeit(los.t)),
         el('span', 'erg' + ((los.erg === T.GLUEHWEIN || los.erg === T.BIER) && !los.storno ? ' marke-g' : ''), ergebnisText(los.erg) + (los.storno ? ' (storniert)' : ''))
-      );
+      ];
+      if (los.storno) {
+        li.append(...teile);
+      } else {
+        // Antippen zeigt QR-Code und Storno noch einmal – falls der Kunde nicht gescannt hat oder das Fenster zu früh zu war.
+        const knopf = el('button', 'eintrag');
+        knopf.type = 'button';
+        knopf.setAttribute('aria-label', 'Los Nr. ' + T.nrText(los.nr) + ' noch einmal zeigen');
+        knopf.append(...teile);
+        knopf.addEventListener('click', () => zeigeLos(los));
+        li.append(knopf);
+      }
       return li;
     }));
   }
@@ -926,7 +952,7 @@
       : sync
         ? 'Dieses Gerät ist Gerät ' + sync.geraet + (sync.name ? ' („' + sync.name + '“)' : '') + ' der gemeinsamen Liste. Seine Losnummern beginnen bei '
           + T.nrText(T.bereich(sync.geraet)[0]) + '. Preis, Quoten und Töpfe gelten für alle Geräte gemeinsam.'
-        : 'Sollen mehrere Geräte verkaufen, legt das erste eine gemeinsame Liste an. Jedes weitere Gerät scannt dort den QR-Code unter „Gerät hinzufügen“ oder tippt hier den Team-Code ein.';
+        : 'Sollen mehrere Geräte verkaufen, tippt das erste auf „Mit mehreren Geräten verkaufen“. Es legt damit eine gemeinsame Liste an und zeigt einen QR-Code. Jedes weitere Gerät scannt ihn oder tippt hier den Team-Code ein.';
     $('loeschenText').textContent = sync
       ? 'Löscht alle verkauften Lose und die Ziehung auf allen Geräten der gemeinsamen Liste. Die Einstellungen bleiben.'
       : 'Löscht alle verkauften Lose und die Ziehung auf diesem Gerät. Die Einstellungen bleiben.';
