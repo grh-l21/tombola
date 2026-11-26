@@ -68,7 +68,7 @@
     }
     if (status === 'gewonnen') {
       return {
-        motiv: 'stern-gold', stufe: 'haupt', gewinn: true, liste: true, dach: 'Dein Los wurde gezogen', gross: preis.name,
+        motiv: 'stern-gold', stufe: 'haupt', gewinn: true, dach: 'Dein Los wurde gezogen', gross: preis.name,
         text: ['Herzlichen Glückwunsch! Hol deinen Gewinn am Stand ab.' + frist,
           'Zeig dort dieses Los. Wir prüfen die Losnummer ' + T.nrText(los.nr) + ' und den Prüfcode ' + los.pruef + '.']
       };
@@ -76,7 +76,7 @@
     if (status === 'nichtGezogen') {
       const gezogen = datei.gewinner.filter((g) => g.topf === los.erg).map((g) => 'Nr. ' + T.nrText(g.nr));
       return {
-        motiv: 'tanne', stufe: 'still', liste: true, dach: 'Im Topf für ' + preis.topf, gross: 'Nicht gezogen',
+        motiv: 'tanne', stufe: 'still', dach: 'Im Topf für ' + preis.topf, gross: 'Nicht gezogen',
         text: ['Die Ziehung ist vorbei, dein Los war leider nicht dabei.'
           + (gezogen.length ? ' Gezogen wurde: ' + gezogen.join(', ') + '.' : ''),
           'Danke fürs Mitmachen!']
@@ -86,16 +86,6 @@
       motiv: 'stern-gold', stufe: 'gross', gewinn: true, dach: 'Du bist im Lostopf für', gross: preis.topf,
       text: ['Dein Los ' + nr + ' nimmt an der Ziehung teil. ' + DATEN.ziehung]
     };
-  }
-
-  // Nach der Ziehung stehen die Gewinnnummern auch auf einer eigenen Seite.
-  function listenHinweis() {
-    const adresse = new URL('gewinner.html', location.href);
-    const p = el('p', 'klein-text', 'Alle Gewinnnummern: ');
-    const a = el('a', '', adresse.host + adresse.pathname);
-    a.href = adresse.pathname.split('/').pop();
-    p.append(a);
-    return p;
   }
 
   // Wer bei der Ziehung nicht dabei ist, schickt dem Verein sein Los per E-Mail oder WhatsApp.
@@ -353,7 +343,6 @@
     if (ohneNetz && status === 'imTopf') {
       details.append(el('p', 'klein-text', 'Gerade keine Verbindung: Ob dein Los schon gezogen wurde, siehst du hier erst wieder mit Internet.'));
     }
-    if (i.liste) details.append(listenHinweis());
     const speichern = speicherKasten(status, datei);
     if (speichern) details.append(speichern);
     const kasten = kontaktKasten(status);
