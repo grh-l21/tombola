@@ -826,6 +826,29 @@
     zeichnen();
   });
 
+  // Nur dieses Gerät wieder leer machen – auch wenn es die gemeinsame Liste nicht mehr gibt oder das Gerät entfernt wurde.
+  $('geraetZurueck').addEventListener('click', async () => {
+    if (sync) await abgleichen();   // was noch wartet, soll vorher möglichst in die gemeinsame Liste
+    nachladen();
+    const n = stand.lose.length;
+    // Verloren geht, was nur hier liegt: ohne gemeinsame Liste alle Lose, sonst die noch nicht abgegebenen.
+    const nurHier = sync ? sync.offen.lose.length : n;
+    const text = 'Dieses Gerät zurücksetzen? '
+      + (n ? (n === 1 ? 'Das eine Los' : 'Die ' + zahl(n) + ' Lose') + ' und die Ziehung werden auf diesem Gerät gelöscht. ' : '')
+      + (sync ? 'Es hängt danach nicht mehr an der gemeinsamen Liste; die Liste selbst und die anderen Geräte bleiben, wie sie sind. ' : '')
+      + (nurHier ? 'Achtung: ' + zahl(nurHier) + (nurHier === 1 ? ' Los liegt' : ' Lose liegen') + ' nur auf diesem Gerät und '
+        + (nurHier === 1 ? 'geht' : 'gehen') + ' dabei verloren – vorher eine Sicherung exportieren. ' : '')
+      + 'Die Einstellungen bleiben.';
+    if (!await frage(text, 'Zurücksetzen')) return;
+    stand = T.leererStand();
+    sync = null;
+    standSpeichern();
+    syncSpeichern();
+    abgleichFehler = null;
+    $('listenMeldung').hidden = true;
+    zeichnen();
+  });
+
   // Erinnerung am Tagesende: wenn seit 20 Minuten nichts mehr verkauft wurde
   // oder ungesicherte Lose von einem früheren Tag stammen. Im laufenden Verkauf stört sie nicht.
   const RUHE = 20 * 60 * 1000;
@@ -927,9 +950,9 @@
     if (abgleichFehler === 'entfernt') {
       text = ENTFERNT + ' '
         + (wartend ? zahl(wartend) + (wartend === 1 ? ' Los liegt' : ' Lose liegen') + ' nur auf diesem Gerät – bitte jetzt eine Sicherung exportieren. ' : 'Alle Lose dieses Geräts sind in der gemeinsamen Liste. ')
-        + 'Zum Weiterverkaufen unter Einstellungen die gemeinsame Liste verlassen.';
+        + 'Zum Neuanfangen unter Einstellungen „Dieses Gerät zurücksetzen“, zum Weiterverkaufen mit den Losen von hier „Gemeinsame Liste verlassen“.';
     } else if (abgleichFehler === 'unbekannt' || abgleichFehler === 'geraet') {
-      text = 'Die gemeinsame Liste kennt dieses Gerät nicht. Bitte unter Einstellungen die gemeinsame Liste verlassen und neu beitreten.';
+      text = 'Die gemeinsame Liste kennt dieses Gerät nicht – vielleicht wurde sie gelöscht. Bitte unter Einstellungen „Dieses Gerät zurücksetzen“ und danach neu beitreten oder eine neue Liste anlegen.';
     } else if (abgleichFehler) {
       text = 'Keine Verbindung zur gemeinsamen Liste (' + zuletzt + '). '
         + (wartend ? zahl(wartend) + (wartend === 1 ? ' Los wartet' : ' Lose warten') + ' auf diesem Gerät und ' + (wartend === 1 ? 'wird' : 'werden') + ' nachgeliefert. ' : '')
