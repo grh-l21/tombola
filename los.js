@@ -187,6 +187,88 @@
   }
 
   // ---------- Rubbelfeld ----------
+  // ---------- Folienkrümel ----------
+  // Wie bei einem echten Rubbellos: Was der Finger abkratzt, wird ein Stück weggeschoben, fällt und verschwindet.
+  // Gibt eine Funktion zurück, die an einer Stelle des Bildschirms Krümel in Wischrichtung losschickt.
+  function kruemelMaschine(masstab) {
+    const canvas = $('spaene');
+    if (!canvas || ruhig) return () => {};
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const c = canvas.getContext('2d');
+    let W = 0;
+    let H = 0;
+    const anpassen = () => {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    anpassen();
+    window.addEventListener('resize', anpassen);
+
+    // Dunkler als die Folie, damit man die Krümel auf dem Gold sieht – dazwischen ein paar helle Glanzstücke.
+    const farben = ['#8A6A1F', '#A27A22', '#6F5417', '#B98F2F', '#8A6A1F', '#FFF4CC'];
+    const zufall = (a, b) => a + Math.random() * (b - a);
+    const teile = [];
+    let laeuft = false;
+    let zuletzt = 0;
+
+    function bild(t) {
+      const dt = Math.min(0.04, (t - zuletzt) / 1000);
+      zuletzt = t;
+      c.clearRect(0, 0, W, H);
+      // Ein zarter Schatten hebt die Krümel von der Folie ab.
+      c.shadowColor = 'rgba(40, 28, 0, 0.35)';
+      c.shadowBlur = 2;
+      c.shadowOffsetY = 1;
+      for (let i = teile.length - 1; i >= 0; i--) {
+        const p = teile[i];
+        p.alter += dt;
+        if (p.alter >= p.leben) { teile.splice(i, 1); continue; }
+        p.vy += 640 * masstab * dt;          // Schwerkraft
+        p.vx *= 1 - 1.8 * dt;                // die Luft bremst
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.winkel += p.dreh * dt;
+        c.globalAlpha = Math.min(1, (1 - p.alter / p.leben) * 2.4);
+        c.save();
+        c.translate(p.x, p.y);
+        c.rotate(p.winkel);
+        c.fillStyle = p.farbe;
+        c.fillRect(-p.b / 2, -p.h / 2, p.b, p.h);
+        c.restore();
+      }
+      c.globalAlpha = 1;
+      if (teile.length) requestAnimationFrame(bild);
+      else laeuft = false;
+    }
+
+    // x, y: Stelle am Bildschirm. rx, ry: Wischrichtung (Länge 1, oder 0 beim Antippen).
+    return (x, y, rx, ry) => {
+      if (teile.length >= 140) return;
+      const tempo = zufall(70, 190) * masstab;
+      teile.push({
+        x: x + rx * 16 * masstab + zufall(-10, 10) * masstab,
+        y: y + ry * 16 * masstab + zufall(-10, 10) * masstab,
+        vx: rx * tempo + zufall(-75, 75) * masstab,
+        vy: ry * tempo * 0.6 - zufall(30, 110) * masstab,   // ein kleiner Hüpfer, dann fällt der Krümel
+        b: zufall(2.5, 6.5) * masstab,
+        h: zufall(1.5, 3.4) * masstab,
+        winkel: zufall(0, Math.PI),
+        dreh: zufall(-9, 9),
+        farbe: farben[Math.floor(Math.random() * farben.length)],
+        alter: 0,
+        leben: zufall(0.5, 0.95)
+      });
+      if (!laeuft) {
+        laeuft = true;
+        zuletzt = performance.now();
+        requestAnimationFrame(bild);
+      }
+    };
+  }
+
   function rubbelfeld(fertig) {
     const canvas = $('decke');
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -262,7 +344,27 @@
     tc.fillRect(0, 0, tupfer.width, tupfer.height);
 
     c.globalCompositeOperation = 'destination-out';
-    const tupfen = (x, y) => c.drawImage(tupfer, x - radius, y - radius, radius * 2, radius * 2);
+    const kruemel = kruemelMaschine(w / 311);
+    let gesummt = 0;
+    // Setzt einen Tupfer. Wo noch Folie liegt, fliegen dabei Krümel weg – je dünner die Folie, desto weniger.
+    const tupfen = (x, y, rx, ry) => {
+      const px = Math.round(x * dpr);
+      const py = Math.round(y * dpr);
+      const folieDa = px >= 0 && py >= 0 && px < canvas.width && py < canvas.height
+        ? c.getImageData(px, py, 1, 1).data[3] / 255
+        : 0;
+      c.drawImage(tupfer, x - radius, y - radius, radius * 2, radius * 2);
+      if (folieDa < 0.08) return;
+      const r = canvas.getBoundingClientRect();
+      if (Math.random() < folieDa) kruemel(r.left + x, r.top + y, rx, ry);
+      if (Math.random() < folieDa * 0.6) kruemel(r.left + x, r.top + y, rx, ry);
+      // Ein feines Kribbeln unter dem Finger, wo das Handy es kann (Android).
+      const jetzt = Date.now();
+      if (navigator.vibrate && !ruhig && jetzt - gesummt > 90) {
+        gesummt = jetzt;
+        navigator.vibrate(5);
+      }
+    };
     let letzter = null;
     let seitTupfer = 0;                // Weg seit dem letzten Tupfer
     let zaehler = 0;
@@ -277,7 +379,7 @@
       const lang = Math.hypot(dx, dy);
       let pos = abstand - seitTupfer;
       while (pos <= lang) {
-        tupfen(a[0] + dx * pos / lang, a[1] + dy * pos / lang);
+        tupfen(a[0] + dx * pos / lang, a[1] + dy * pos / lang, dx / lang, dy / lang);
         pos += abstand;
       }
       seitTupfer = lang - (pos - abstand);
@@ -296,7 +398,7 @@
     canvas.addEventListener('pointerdown', (e) => {
       canvas.setPointerCapture(e.pointerId);
       letzter = punkt(e);
-      tupfen(letzter[0], letzter[1]);
+      tupfen(letzter[0], letzter[1], 0, 0);
       seitTupfer = 0;
     });
     canvas.addEventListener('pointermove', (e) => {
