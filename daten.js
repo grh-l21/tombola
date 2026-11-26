@@ -16,7 +16,7 @@
     },
     // Adresse der gemeinsamen Liste für mehrere Verkaufsgeräte (das Programm im Ordner "ablage", bei Cloudflare).
     // Leer = jedes Gerät verkauft nur für sich.
-    ablage: '',
+    ablage: 'https://tombola-ablage.tombola-ablage.workers.dev',
     preise: [
       { id: 'ski',    name: 'Fischer Ski',                 topf: 'Fischer Ski',                 ziehungen: 1 },
       { id: 'reifen', name: 'Reifen von RWA',              topf: 'Reifen von RWA',              ziehungen: 1 },
