@@ -241,13 +241,30 @@
     c.font = '600 ' + w * 0.052 + 'px "Besley", Georgia, serif';
     c.fillText('mit dem Finger freilegen', w / 2, h * 0.46 + gr * 0.74);
 
-    // Ab hier radiert jeder Strich die Folie weg. Die Strichfarbe muss deckend sein, sonst bleibt ein Schleier.
+    // Ab hier nimmt jedes Darüberfahren nur einen Teil der Folie weg: Sie wird nach und nach durchsichtiger,
+    // und man muss ein paar Mal rubbeln, bis das Ergebnis frei liegt.
+    // Der Finger setzt in festen Abständen weiche Tupfer. So zählt der Weg des Fingers –
+    // nicht, wie oft das Handy die Bewegung meldet.
+    const STAERKE = 0.085;             // so viel nimmt ein Tupfer in seiner Mitte weg (einmal darüberfahren: etwa 40 %)
+    const FREI_AB = 90;                // unter dieser Deckkraft (von 255) gilt eine Stelle als freigerubbelt – etwa nach dreimal
+    const ANTEIL = 0.33;               // so viel der Fläche muss frei sein, dann wird aufgedeckt
+    const radius = w * 0.15;
+    const abstand = radius * 0.25;
+    const tupfer = document.createElement('canvas');
+    tupfer.width = tupfer.height = Math.ceil(radius * 2 * dpr);
+    const tc = tupfer.getContext('2d');
+    const mitte = tupfer.width / 2;
+    const verlauf = tc.createRadialGradient(mitte, mitte, 0, mitte, mitte, mitte);
+    verlauf.addColorStop(0, 'rgba(0, 0, 0, ' + STAERKE + ')');
+    verlauf.addColorStop(0.5, 'rgba(0, 0, 0, ' + STAERKE + ')');
+    verlauf.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    tc.fillStyle = verlauf;
+    tc.fillRect(0, 0, tupfer.width, tupfer.height);
+
     c.globalCompositeOperation = 'destination-out';
-    c.strokeStyle = '#000';
-    c.lineWidth = w * 0.17;
-    c.lineCap = 'round';
-    c.lineJoin = 'round';
+    const tupfen = (x, y) => c.drawImage(tupfer, x - radius, y - radius, radius * 2, radius * 2);
     let letzter = null;
+    let seitTupfer = 0;                // Weg seit dem letzten Tupfer
     let zaehler = 0;
     let erledigt = false;
     const punkt = (e) => {
@@ -255,10 +272,15 @@
       return [e.clientX - r.left, e.clientY - r.top];
     };
     const wisch = (a, b) => {
-      c.beginPath();
-      c.moveTo(a[0], a[1]);
-      c.lineTo(b[0] + 0.01, b[1]);
-      c.stroke();
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const lang = Math.hypot(dx, dy);
+      let pos = abstand - seitTupfer;
+      while (pos <= lang) {
+        tupfen(a[0] + dx * pos / lang, a[1] + dy * pos / lang);
+        pos += abstand;
+      }
+      seitTupfer = lang - (pos - abstand);
     };
     const pruefen = () => {
       if (erledigt) return;
@@ -267,14 +289,15 @@
       let alle = 0;
       for (let i = 3; i < d.length; i += 4 * 23) {
         alle++;
-        if (d[i] < 40) frei++;
+        if (d[i] < FREI_AB) frei++;
       }
-      if (frei / alle > 0.45) { erledigt = true; fertig(); }
+      if (frei / alle > ANTEIL) { erledigt = true; fertig(); }
     };
     canvas.addEventListener('pointerdown', (e) => {
       canvas.setPointerCapture(e.pointerId);
       letzter = punkt(e);
-      wisch(letzter, letzter);
+      tupfen(letzter[0], letzter[1]);
+      seitTupfer = 0;
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!letzter) return;
