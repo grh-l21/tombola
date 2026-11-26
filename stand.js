@@ -5,6 +5,7 @@
   const PREISE = DATEN.preise;
   const LS_CONFIG = 'tombola.config.v1';
   const LS_STAND = 'tombola.stand.v1';
+  const LS_SYNC = 'tombola.sync.v1';
 
   const $ = (id) => document.getElementById(id);
   const el = (tag, klasse, text) => {
@@ -36,6 +37,17 @@
   const standSpeichern = () => schreiben(LS_STAND, stand);
   const configSpeichern = () => schreiben(LS_CONFIG, config);
 
+  // Merkzettel für die gemeinsame Liste mehrerer Geräte; null = dieses Gerät verkauft nur für sich.
+  function syncLesen() {
+    const s = lesen(LS_SYNC);
+    return s && typeof s === 'object' && s.code && s.geraet && s.offen ? s : null;
+  }
+  let sync = syncLesen();
+  function syncSpeichern() {
+    if (sync) schreiben(LS_SYNC, sync);
+    else { try { localStorage.removeItem(LS_SYNC); } catch (e) { /* privater Modus */ } }
+  }
+
   // Maßgeblich ist der Speicher des Geräts, nicht dieses Fenster. Ist die App ein zweites Mal offen
   // (zweiter Tab, ein Fenster von gestern), hat das andere Fenster vielleicht inzwischen verkauft.
   // Darum vor jeder Änderung neu lesen – sonst überschreibt ein altes Fenster die Lose des anderen.
@@ -44,6 +56,7 @@
     if (s) stand = T.standPruefen(s);
     const c = lesen(LS_CONFIG);
     if (c) config = T.configPruefen(c, PREISE);
+    if (speicherOk) sync = syncLesen();
   }
   // Hinter einem offenen Los wird nicht neu gezeichnet – die Listen würden das Ergebnis verraten.
   function auffrischen() {
@@ -51,9 +64,9 @@
     if (!$('losDialog').open) zeichnen();
   }
   window.addEventListener('storage', (e) => {
-    if (e.key === null || e.key === LS_STAND || e.key === LS_CONFIG) auffrischen();
+    if (e.key === null || e.key === LS_STAND || e.key === LS_CONFIG || e.key === LS_SYNC) auffrischen();
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) auffrischen(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { auffrischen(); abgleichen(); } });
   window.addEventListener('pageshow', (e) => { if (e.persisted) auffrischen(); });
 
   function rand01() {
@@ -70,8 +83,11 @@
       $('frageJa').textContent = ja || 'Ja';
       d.returnValue = 'nein';
       d.addEventListener('close', () => fertig(d.returnValue === 'ja'), { once: true });
+      // Reine Mitteilungen ("OK") brauchen kein "Abbrechen".
+      const nurOk = ja === 'OK';
+      $('frageNein').hidden = nurOk;
       d.showModal();
-      $('frageNein').focus();
+      (nurOk ? $('frageJa') : $('frageNein')).focus();
     });
   }
 
@@ -115,9 +131,19 @@
 
   $('verkaufen').addEventListener('click', () => {
     nachladen();
-    const los = T.verkaufen(stand, config, PREISE, rand01, Date.now());
+    let los;
+    try {
+      los = T.verkaufen(stand, config, PREISE, rand01, Date.now(), sync ? sync.geraet : 1);
+    } catch (e) {
+      frage(e.message, 'OK');
+      return;
+    }
+    // Erst auf dem Gerät speichern, dann an die gemeinsame Liste schicken – so geht kein Los verloren, auch ohne Empfang.
+    if (sync) T.abgleichVormerken(sync, { los: los.nr });
     standSpeichern();
+    syncSpeichern();
     zeigeLos(los);   // Die Listen dahinter werden erst nach dem Schließen neu gezeichnet – sonst verraten sie das Ergebnis.
+    abgleichen();
   });
 
   function zeigeLos(los) {
@@ -163,10 +189,12 @@
     if (!los) return;
     if (!await frage('Los Nr. ' + T.nrText(los.nr) + ' stornieren? Es zählt dann nicht mehr und nimmt an keiner Ziehung teil.', 'Stornieren')) return;
     nachladen();
-    T.stornieren(stand, los.nr);
+    if (T.stornieren(stand, los.nr) && sync) T.abgleichVormerken(sync, { storno: los.nr });
     standSpeichern();
+    syncSpeichern();
     $('losDialog').close();
     zeichnen();
+    abgleichen();
   });
   $('losDialog').addEventListener('close', () => { offenesLos = null; zeichnen(); $('verkaufen').focus(); });
 
@@ -203,7 +231,40 @@
   }
 
   // ---------- Ziehung ----------
+  // Mit gemeinsamer Liste wird nur gezogen, wenn dieses Gerät gerade alle Lose der anderen geholt hat.
+  async function vorZiehung() {
+    if (!sync) return true;
+    if (await abgleichen()) return true;
+    await frage('Für die Ziehung braucht dieses Gerät Verbindung zur gemeinsamen Liste – sonst könnten Lose anderer Geräte fehlen. Bitte Empfang prüfen und noch einmal versuchen.', 'OK');
+    return false;
+  }
+  function nachZiehung() {
+    if (sync) T.abgleichVormerken(sync, { ziehung: true });
+    standSpeichern();
+    syncSpeichern();
+    zeichnen();
+    abgleichen();
+  }
+
+  function zeichneGeraete() {
+    $('geraeteKasten').hidden = !sync;
+    if (!sync) return;
+    const jetzt = Date.now();
+    const liste = sync.geraete || [];
+    $('geraeteListe').replaceChildren(...(liste.length ? liste : [{ nr: sync.geraet, name: sync.name, lose: 0, kontakt: 0 }]).map((g) => {
+      const li = el('li');
+      const spaet = g.nr !== sync.geraet && jetzt - g.kontakt > 5 * 60 * 1000;
+      li.append(
+        el('span', 'geraet', 'Gerät ' + g.nr + (g.name && g.name !== 'Gerät ' + g.nr ? ' · ' + g.name : '') + (g.nr === sync.geraet ? ' (dieses Gerät)' : '')),
+        el('span', 'ziffern', zahl(g.lose) + (g.lose === 1 ? ' Los' : ' Lose')),
+        el('span', spaet ? 'spaet' : 'matt', g.kontakt ? (spaet ? 'zuletzt gemeldet ' : 'gemeldet ') + uhrzeit(g.kontakt) : 'noch nicht gemeldet')
+      );
+      return li;
+    }));
+  }
+
   function zeichneZiehung() {
+    zeichneGeraete();
     $('toepfe').replaceChildren(...PREISE.map((p) => {
       const karte = el('article', 'topf');
       const gezogen = T.gezogene(stand, p.id);
@@ -219,10 +280,10 @@
           neu.addEventListener('click', async () => {
             const text = 'Los Nr. ' + T.nrText(nr) + ' verfällt und es wird ein anderes gezogen. Nur verwenden, wenn der Preis nicht abgeholt wurde.';
             if (!await frage(text, 'Neu ziehen')) return;
+            if (!await vorZiehung()) return;
             nachladen();
             T.neuZiehen(stand, p, nr, rand01);
-            standSpeichern();
-            zeichnen();
+            nachZiehung();
           });
           li.append(el('span', 'nummer ziffern', 'Nr. ' + T.nrText(nr)), neu);
           ul.append(li);
@@ -241,10 +302,10 @@
         knopf.textContent = p.ziehungen > 1 ? 'Ziehen (' + (gezogen.length + 1) + ' von ' + p.ziehungen + ')' : 'Ziehen';
         knopf.addEventListener('click', async () => {
           if (!await frage('Jetzt für „' + p.name + '“ ziehen?', 'Ziehen')) return;
+          if (!await vorZiehung()) return;
           nachladen();
           T.ziehen(stand, p, rand01);
-          standSpeichern();
-          zeichnen();
+          nachZiehung();
         });
       }
       karte.append(knopf);
@@ -266,15 +327,16 @@
   $('abholfrist').addEventListener('change', (e) => {
     nachladen();
     config = T.configPruefen({ ...config, abholfrist: e.target.value }, PREISE);
-    configSpeichern();
+    configGeaendert();
   });
   $('gewinnerLaden').addEventListener('click', () => {
     nachladen();
     herunterladen('gewinner.json', T.gewinnerDatei(stand, config, PREISE, Date.now()));
   });
 
-  $('pruefForm').addEventListener('submit', (e) => {
+  $('pruefForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (sync) await abgleichen();   // damit auch ein eben erst verkauftes Los eines anderen Geräts bekannt ist
     nachladen();
     const r = T.losPruefen(stand, $('pruefNr').value.trim(), $('pruefCode').value);
     const aus = $('pruefErgebnis');
@@ -294,6 +356,14 @@
   });
 
   // ---------- Einstellungen ----------
+  // Preis, Quoten, Gewichte und Abholfrist gelten mit gemeinsamer Liste für alle Geräte.
+  function configGeaendert() {
+    if (sync) T.abgleichVormerken(sync, { config: true });
+    configSpeichern();
+    syncSpeichern();
+    abgleichen();
+  }
+
   function configAusFormular() {
     const gewichte = {};
     PREISE.forEach((p) => { gewichte[p.id] = $('gew-' + p.id).value; });
@@ -307,7 +377,7 @@
       losSeite: $('fLosSeite').value,
       gewichte
     }, PREISE);
-    configSpeichern();
+    configGeaendert();
     zeichnen();
   }
 
@@ -383,6 +453,11 @@
     const datei = e.target.files[0];
     e.target.value = '';
     if (!datei) return;
+    nachladen();
+    if (sync) {
+      await frage('Solange dieses Gerät an der gemeinsamen Liste hängt, lässt sich keine Sicherung einspielen. Dafür zuerst die gemeinsame Liste verlassen.', 'OK');
+      return;
+    }
     let neu;
     try {
       neu = T.sicherungLesen(JSON.parse(await datei.text()), PREISE);
@@ -403,6 +478,7 @@
 
   $('allesLoeschen').addEventListener('click', async () => {
     nachladen();
+    if (sync) { fuerAlleLeeren(); return; }
     const text = 'Wirklich alle ' + zahl(stand.lose.length) + ' Lose und die Ziehung löschen? Zurückholen geht nur mit einer Sicherungsdatei.';
     if (!await frage(text, 'Alles löschen')) return;
     stand = T.leererStand();
@@ -425,17 +501,258 @@
     }
   }
 
+  // ---------- Gemeinsame Liste für mehrere Geräte ----------
+  // Die Adresse der Ablage steht in daten.js. Zum Testen am Rechner lässt sie sich im Gerätespeicher überschreiben.
+  const ABLAGE = String((() => { try { return localStorage.getItem('tombola.ablage.test'); } catch (e) { return null; } })() || DATEN.ablage || '').replace(/\/+$/, '');
+  let abgleichFehler = null;     // null = der letzte Abgleich hat geklappt; sonst 'netz', 'unbekannt', 'geraet' …
+  let abgleichLauf = null;
+
+  async function ruf(pfad, body) {
+    const abbruch = new AbortController();
+    const frist = setTimeout(() => abbruch.abort(), 12000);
+    try {
+      // Ohne eigene Kopfzeilen: Dann fragt der Browser nicht bei jedem Abgleich doppelt an.
+      const res = await fetch(ABLAGE + pfad, { method: 'POST', body: JSON.stringify(body), cache: 'no-store', signal: abbruch.signal });
+      const daten = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const e = new Error('Ablage: ' + res.status);
+        e.kurz = daten.fehler || 'fehler';
+        throw e;
+      }
+      return daten;
+    } finally {
+      clearTimeout(frist);
+    }
+  }
+
+  // Gibt eigene Änderungen ab und holt die der anderen. Liefert true, wenn danach nichts mehr offen ist.
+  function abgleichen() {
+    if (!sync || !ABLAGE) return Promise.resolve(false);
+    if (!abgleichLauf) abgleichLauf = abgleichLaufen().finally(() => { abgleichLauf = null; });
+    return abgleichLauf;
+  }
+
+  async function abgleichLaufen() {
+    try {
+      for (let runde = 0; runde < 200; runde++) {
+        nachladen();
+        if (!sync) return false;
+        const anfrage = T.abgleichAnfrage(sync, stand, config);
+        const antwort = await ruf('/v1/abgleich', anfrage);
+        // Während der Anfrage kann hier verkauft oder in einem zweiten Fenster gespeichert worden sein.
+        nachladen();
+        if (!sync || sync.code !== anfrage.code || sync.geraet !== anfrage.geraet) return false;
+        const r = T.abgleichAntwort(sync, stand, config, anfrage, antwort, PREISE, Date.now());
+        config = r.config;
+        standSpeichern();
+        configSpeichern();
+        syncSpeichern();
+        abgleichFehler = null;
+        if (r.meldung) melden(r.meldung);
+        if (!T.abgleichOffen(sync)) {
+          if (!$('losDialog').open) zeichnen(); else zeichneStatus();
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      abgleichFehler = e.kurz || 'netz';
+      zeichneStatus();
+      return false;
+    }
+  }
+
+  const MELDUNGEN = {
+    geleert: 'Die gemeinsame Liste wurde für alle Geräte geleert. Lose, die dieses Gerät erst danach verkauft hat, bleiben erhalten.',
+    ziehungAbgelehnt: 'Ein anderes Gerät hat inzwischen gezogen. Die Ziehung dieses Geräts wurde verworfen – es gilt die des anderen Geräts.'
+  };
+  function melden(art) {
+    $('listenMeldungText').textContent = MELDUNGEN[art] || art;
+    $('listenMeldung').hidden = false;
+  }
+  $('listenMeldungOk').addEventListener('click', () => { $('listenMeldung').hidden = true; });
+
+  function zeichneStatus() {
+    const leiste = $('listenStatus');
+    leiste.hidden = !sync;
+    $('nurHier').textContent = sync
+      ? 'Dieses Gerät ist Gerät ' + sync.geraet + ' der gemeinsamen Liste. Jedes Los wird zuerst hier gespeichert und dann an die gemeinsame Liste geschickt.'
+      : 'Die Lose liegen nur auf diesem Gerät. Bitte immer am selben Gerät verkaufen – ein zweites Gerät führt eine eigene Liste und zählt wieder ab Nr. 0001.';
+    if (!sync) return;
+    const wartend = sync.offen.lose.length;
+    const zuletzt = sync.kontakt ? 'zuletzt abgeglichen um ' + uhrzeit(sync.kontakt) : 'noch nicht abgeglichen';
+    let text;
+    let warn = true;
+    if (abgleichFehler === 'unbekannt' || abgleichFehler === 'geraet') {
+      text = 'Die gemeinsame Liste kennt dieses Gerät nicht. Bitte unter Einstellungen die gemeinsame Liste verlassen und neu beitreten.';
+    } else if (abgleichFehler) {
+      text = 'Keine Verbindung zur gemeinsamen Liste (' + zuletzt + '). '
+        + (wartend ? zahl(wartend) + (wartend === 1 ? ' Los wartet' : ' Lose warten') + ' auf diesem Gerät und ' + (wartend === 1 ? 'wird' : 'werden') + ' nachgeliefert. ' : '')
+        + 'Verkaufen geht weiter.';
+    } else {
+      warn = false;
+      text = 'Gemeinsame Liste · Gerät ' + sync.geraet + ' · ' + zuletzt;
+    }
+    leiste.textContent = text;
+    leiste.classList.toggle('warn', warn);
+  }
+
+  function nameFragen(text, ja) {
+    return new Promise((fertig) => {
+      const d = $('beitrittDialog');
+      $('beitrittText').textContent = text;
+      $('beitrittJa').textContent = ja;
+      $('beitrittName').value = '';
+      d.returnValue = 'nein';
+      d.addEventListener('close', () => fertig(d.returnValue === 'ja' ? $('beitrittName').value.trim() : null), { once: true });
+      d.showModal();
+      $('beitrittName').focus();
+    });
+  }
+
+  function teamZeigen() {
+    if (!sync) return;
+    const link = new URL('./', location.href).href.split('#')[0] + '#team=' + sync.code;
+    $('teamQr').innerHTML = QR.svg(link);
+    $('teamCodeText').textContent = T.codeText(sync.code);
+    $('teamDialog').showModal();
+    $('teamFertig').focus();
+  }
+  $('teamFertig').addEventListener('click', () => $('teamDialog').close());
+  $('geraetHinzu').addEventListener('click', teamZeigen);
+
+  // neu = true legt die Liste an (dieses Gerät wird Gerät 1), sonst tritt das Gerät einer vorhandenen Liste bei.
+  async function beitreten(code, neu) {
+    nachladen();
+    if (!ABLAGE) {
+      await frage('Die gemeinsame Liste ist noch nicht eingerichtet.', 'OK');
+      return;
+    }
+    if (sync) {
+      await frage('Dieses Gerät hängt schon an einer gemeinsamen Liste. Zum Wechseln zuerst unter Einstellungen die gemeinsame Liste verlassen.', 'OK');
+      return;
+    }
+    const n = stand.lose.length;
+    if (neu && stand.lose.some((l) => l.nr > T.bereich(1)[1])) {
+      await frage('Auf diesem Gerät liegen noch Lose aus einer früheren gemeinsamen Liste. Bitte zuerst eine Sicherung exportieren und dann „Alle Lose löschen“.', 'OK');
+      return;
+    }
+    const text = neu
+      ? 'Gemeinsame Liste anlegen? Dieses Gerät wird Gerät 1.' + (n ? ' Die ' + zahl(n) + (n === 1 ? ' Los' : ' Lose') + ' dieses Geräts kommen in die gemeinsame Liste.' : '')
+      : 'Dieses Gerät zur gemeinsamen Liste hinzufügen?' + (n ? ' Achtung: Die ' + zahl(n) + (n === 1 ? ' Los' : ' Lose') + ', die jetzt auf diesem Gerät liegen, werden dabei gelöscht.' : '');
+    const name = await nameFragen(text, neu ? 'Anlegen' : 'Beitreten');
+    if (name === null) return;
+    let beitritt;
+    try {
+      beitritt = await ruf('/v1/beitreten', { code, neu, name });
+    } catch (e) {
+      await frage(e.kurz === 'unbekannt'
+        ? 'Diesen Team-Code kennt die gemeinsame Liste nicht. Bitte den QR-Code am anderen Gerät noch einmal scannen.'
+        : 'Das hat nicht geklappt. Bitte die Internet-Verbindung prüfen und noch einmal versuchen.', 'OK');
+      return;
+    }
+    nachladen();
+    if (!neu) stand = T.leererStand();
+    sync = T.abgleichNeu(code, beitritt, stand, neu);
+    standSpeichern();
+    syncSpeichern();
+    abgleichFehler = null;
+    zeichnen();
+    await abgleichen();
+    if (neu) teamZeigen();
+  }
+
+  $('listeAnlegen').addEventListener('click', () => beitreten(T.teamCode(rand01), true));
+  $('listeBeitreten').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = T.codeLesen($('fTeamCode').value);
+    if (!code) {
+      await frage('Der Team-Code hat 16 Zeichen. Bitte noch einmal vom anderen Gerät abschreiben oder dort den QR-Code scannen.', 'OK');
+      return;
+    }
+    $('fTeamCode').value = '';
+    beitreten(code, false);
+  });
+
+  $('listeVerlassen').addEventListener('click', async () => {
+    await abgleichen();
+    nachladen();
+    if (!sync) return;
+    const wartend = sync.offen.lose.length;
+    const text = (wartend ? 'Achtung: ' + zahl(wartend) + (wartend === 1 ? ' Los ist' : ' Lose sind') + ' noch nicht in der gemeinsamen Liste angekommen. ' : '')
+      + 'Gemeinsame Liste verlassen? Die Lose bleiben auf diesem Gerät und in der gemeinsamen Liste. Danach verkauft dieses Gerät wieder nur für sich.';
+    if (!await frage(text, 'Verlassen')) return;
+    nachladen();
+    sync = null;
+    syncSpeichern();
+    abgleichFehler = null;
+    zeichnen();
+  });
+
+  async function fuerAlleLeeren() {
+    const text = 'Wirklich alle ' + zahl(stand.lose.length) + ' Lose und die Ziehung löschen – auf ALLEN Geräten der gemeinsamen Liste? Die Zählung beginnt überall neu.';
+    if (!await frage(text, 'Für alle löschen')) return;
+    try {
+      const r = await ruf('/v1/leeren', { code: sync.code, geraet: sync.geraet, epoche: sync.epoche });
+      nachladen();
+      if (!sync) return;
+      T.abgleichGeleert(sync, stand, r.epoche);
+      standSpeichern();
+      syncSpeichern();
+      zeichnen();
+    } catch (e) {
+      if (e.kurz !== 'veraltet') {
+        await frage('Das Leeren hat nicht geklappt. Dafür braucht dieses Gerät Verbindung zur gemeinsamen Liste.', 'OK');
+        return;
+      }
+    }
+    abgleichen();
+  }
+
+  function zeichneListe() {
+    $('listeNeu').hidden = !ABLAGE || !!sync;
+    $('listeBeitreten').hidden = !ABLAGE || !!sync;
+    $('listeDabei').hidden = !sync;
+    $('listeText').textContent = !ABLAGE
+      ? 'Die gemeinsame Liste für mehrere Verkaufsgeräte ist noch nicht eingerichtet. Bis dahin bitte nur an einem Gerät verkaufen.'
+      : sync
+        ? 'Dieses Gerät ist Gerät ' + sync.geraet + (sync.name ? ' („' + sync.name + '“)' : '') + ' der gemeinsamen Liste. Seine Losnummern beginnen bei '
+          + T.nrText(T.bereich(sync.geraet)[0]) + '. Preis, Quoten und Töpfe gelten für alle Geräte gemeinsam.'
+        : 'Sollen mehrere Geräte verkaufen, legt das erste eine gemeinsame Liste an. Jedes weitere Gerät scannt dort den QR-Code unter „Gerät hinzufügen“ oder tippt hier den Team-Code ein.';
+    $('loeschenText').textContent = sync
+      ? 'Löscht alle verkauften Lose und die Ziehung auf allen Geräten der gemeinsamen Liste. Die Einstellungen bleiben.'
+      : 'Löscht alle verkauften Lose und die Ziehung auf diesem Gerät. Die Einstellungen bleiben.';
+  }
+
+  // Ein neues Gerät scannt den QR-Code "Gerät hinzufügen": Die Adresse endet dann auf #team=…
+  function beitrittAusAdresse() {
+    const m = /^#team=(.+)$/.exec(location.hash);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);   // der Code soll nicht in der Adresszeile stehen bleiben
+    const code = T.codeLesen(decodeURIComponent(m[1]));
+    if (code) beitreten(code, false);
+  }
+
   function zeichnen() {
+    zeichneStatus();
     zeichneHinweis();
     if (!$('verkauf').hidden) zeichneVerkauf();
     if (!$('ziehung').hidden) zeichneZiehung();
-    if (!$('einstellungen').hidden) zeichneEinstellungen();
+    if (!$('einstellungen').hidden) { zeichneEinstellungen(); zeichneListe(); }
   }
 
   $('titel').textContent = DATEN.titel;
   $('speicherWarnung').hidden = speicherOk;
   zeichnen();
   setInterval(zeichneHinweis, 60000);
+
+  // Gemeinsame Liste: gleich beim Öffnen, dann alle 15 Sekunden, solange die App sichtbar ist,
+  // und sofort, wenn die Verbindung zurückkommt.
+  abgleichen();
+  setInterval(() => { if (!document.hidden) abgleichen(); }, 15000);
+  window.addEventListener('online', () => abgleichen());
+  window.addEventListener('hashchange', beitrittAusAdresse);
+  beitrittAusAdresse();
 
   // Ohne Internet starten: nur auf https oder localhost möglich.
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

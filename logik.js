@@ -86,8 +86,17 @@
     return s;
   }
 
-  function verkaufen(stand, config, preise, rand01, jetzt) {
-    const nr = stand.lose.reduce((m, l) => Math.max(m, l.nr), 0) + 1;
+  // Verkaufen mehrere Geräte in eine gemeinsame Liste, bekommt jedes einen eigenen Nummernbereich –
+  // so vergeben zwei Geräte nie dieselbe Nummer, auch nicht ohne Empfang.
+  // Gerät 1 zählt 1 bis 9999, Gerät 2 zählt 20001 bis 29999 und so weiter.
+  function bereich(geraet) {
+    return geraet > 1 ? [geraet * 10000 + 1, geraet * 10000 + 9999] : [1, 9999];
+  }
+
+  function verkaufen(stand, config, preise, rand01, jetzt, geraet) {
+    const [von, bis] = bereich(geraet || 1);
+    const nr = stand.lose.reduce((m, l) => (l.nr >= von && l.nr <= bis ? Math.max(m, l.nr) : m), von - 1) + 1;
+    if (nr > bis) throw new Error('Der Nummernbereich dieses Geräts ist voll.');
     const los = { nr, t: jetzt, preis: config.preis, erg: auslosen(config, preise, rand01), pruef: pruefcode(rand01) };
     stand.lose.push(los);
     return los;
@@ -254,6 +263,171 @@
     return { stand: standPruefen(obj.stand), config: configPruefen(obj.config, preise) };
   }
 
+  // ---------- Mehrere Geräte: Team-Code und Abgleich mit der gemeinsamen Liste ----------
+  // Jedes Gerät führt weiter seine eigene Liste und gleicht sie mit der Ablage im Internet ab (ablage/worker.js).
+  // "sync" merkt sich je Gerät, was noch nicht abgegeben ist und was es von der Ablage schon kennt.
+
+  const TEAM_LAENGE = 16;
+  const PAKET = 50;   // so viele Lose gehen höchstens in eine Anfrage
+
+  function teamCode(rand01) {
+    let s = '';
+    for (let i = 0; i < TEAM_LAENGE; i++) s += CODE_ZEICHEN[Math.floor(rand01() * CODE_ZEICHEN.length)];
+    return s;
+  }
+
+  const codeText = (code) => String(code).replace(/(.{4})(?=.)/g, '$1-');
+
+  function codeLesen(text) {
+    const c = String(text || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return new RegExp('^[' + CODE_ZEICHEN + ']{' + TEAM_LAENGE + '}$').test(c) ? c : null;
+  }
+
+  // Diese Einstellungen gelten für alle Geräte gemeinsam. Die Adresse der Los-Seite bleibt je Gerät.
+  function gemeinsameConfig(config) {
+    const { preis, quoteGluehwein, quoteBier, quoteTopf, gewichte, abholfrist } = config;
+    return { preis, quoteGluehwein, quoteBier, quoteTopf, gewichte, abholfrist };
+  }
+
+  // Neuer Merkzettel nach dem Anlegen der Liste oder dem Beitreten.
+  // Wer die Liste anlegt, liefert seine vorhandenen Lose, die Ziehung und die Einstellungen nach.
+  function abgleichNeu(code, beitritt, stand, anleger) {
+    const [von, bis] = bereich(beitritt.geraet);
+    const eigene = anleger ? stand.lose.filter((l) => l.nr >= von && l.nr <= bis) : [];
+    const gezogen = Object.keys(stand.ziehung).length + Object.keys(stand.verfallen).length > 0;
+    return {
+      code, geraet: beitritt.geraet, name: beitritt.name || '', epoche: beitritt.epoche,
+      cursor: 0, ziehungV: 0, configV: 0, kontakt: 0, geraete: [],
+      offen: {
+        lose: eigene.map((l) => l.nr),
+        storno: eigene.filter((l) => l.storno).map((l) => l.nr),
+        ziehung: anleger && gezogen ? 1 : 0,
+        config: anleger ? 1 : 0
+      }
+    };
+  }
+
+  // Nach jeder Änderung am Gerät: vormerken, was die Ablage noch nicht hat.
+  function abgleichVormerken(sync, was) {
+    if (was.los !== undefined && !sync.offen.lose.includes(was.los)) sync.offen.lose.push(was.los);
+    if (was.storno !== undefined && !sync.offen.storno.includes(was.storno)) sync.offen.storno.push(was.storno);
+    if (was.ziehung) sync.offen.ziehung += 1;
+    if (was.config) sync.offen.config += 1;
+  }
+
+  const abgleichOffen = (sync) =>
+    sync.offen.lose.length > 0 || sync.offen.storno.length > 0 || sync.offen.ziehung > 0 || sync.offen.config > 0;
+
+  // Was dieses Gerät der Ablage schickt.
+  function abgleichAnfrage(sync, stand, config) {
+    const paket = sync.offen.lose.slice(0, PAKET);
+    const spaeter = sync.offen.lose.slice(PAKET);
+    const nachNr = new Map(stand.lose.map((l) => [l.nr, l]));
+    // Ein Storno geht erst mit, wenn auch sein Los bei der Ablage ist.
+    const storno = sync.offen.storno.filter((nr) => !spaeter.includes(nr)).slice(0, PAKET);
+    const a = {
+      code: sync.code, geraet: sync.geraet, epoche: sync.epoche, seit: sync.cursor,
+      lose: paket.filter((nr) => nachNr.has(nr)).map((nr) => {
+        const { t, preis, erg, pruef } = nachNr.get(nr);
+        return { nr, t, preis, erg, pruef };
+      }),
+      storno
+    };
+    if (sync.offen.ziehung) a.ziehung = { basis: sync.ziehungV, wert: { ziehung: stand.ziehung, verfallen: stand.verfallen } };
+    if (sync.offen.config) a.config = gemeinsameConfig(config);
+    // Merkt sich, was genau unterwegs ist – ohne dass es mitgeschickt wird.
+    Object.defineProperty(a, 'merk', { value: { lose: paket, storno, ziehung: sync.offen.ziehung, config: sync.offen.config } });
+    return a;
+  }
+
+  function standLeeren(stand) {
+    stand.lose = [];
+    stand.ziehung = {};
+    stand.verfallen = {};
+  }
+
+  // Die Antwort der Ablage einarbeiten. Ändert stand und sync, gibt die gültigen Einstellungen
+  // und gegebenenfalls eine Meldung zurück: 'geleert' oder 'ziehungAbgelehnt'.
+  function abgleichAntwort(sync, stand, config, anfrage, antwort, preise, jetzt) {
+    const merk = anfrage.merk;
+    const aktuell = antwort.epoche === sync.epoche;
+    let meldung;
+    let eigeneZiehungGilt = false;
+
+    if (!aktuell) {
+      // Ein anderes Gerät hat die Liste für alle geleert: Auch hier beginnt eine neue Runde.
+      // Erhalten bleibt nur, was dieses Gerät erst nach dem Leeren verkauft und noch nicht abgegeben hat –
+      // es wusste noch nichts vom Leeren, und diese Lose sind echte Verkäufe der neuen Runde.
+      const [von, bis] = bereich(sync.geraet);
+      const behalten = typeof antwort.geleert === 'number'
+        ? stand.lose.filter((l) => l.nr >= von && l.nr <= bis && sync.offen.lose.includes(l.nr) && l.t > antwort.geleert)
+        : [];
+      standLeeren(stand);
+      stand.lose = behalten;
+      sync.epoche = antwort.epoche;
+      sync.offen = {
+        lose: behalten.map((l) => l.nr),
+        storno: behalten.filter((l) => l.storno).map((l) => l.nr),
+        ziehung: 0,
+        config: sync.offen.config
+      };
+      meldung = 'geleert';
+    } else {
+      sync.offen.lose = sync.offen.lose.filter((nr) => !merk.lose.includes(nr));
+      sync.offen.storno = sync.offen.storno.filter((nr) => !merk.storno.includes(nr));
+      if (antwort.ziehungAbgelehnt) {
+        // Ein anderes Gerät hat zuerst gezogen. Die eigene Ziehung wird verworfen.
+        sync.offen.ziehung = 0;
+        meldung = 'ziehungAbgelehnt';
+      } else if (merk.ziehung) {
+        eigeneZiehungGilt = true;
+        if (sync.offen.ziehung === merk.ziehung) sync.offen.ziehung = 0;
+      }
+      if (merk.config && sync.offen.config === merk.config) sync.offen.config = 0;
+    }
+
+    const nachNr = new Map(stand.lose.map((l) => [l.nr, l]));
+    antwort.lose.forEach((l) => {
+      const da = nachNr.get(l.nr);
+      if (!da) stand.lose.push(l);
+      else if (l.storno) da.storno = true;
+    });
+    stand.lose.sort((a, b) => a.t - b.t || a.nr - b.nr);
+
+    if (!sync.offen.ziehung) {
+      if (antwort.ziehung.v !== sync.ziehungV || meldung) {
+        const w = antwort.ziehung.wert || {};
+        stand.ziehung = w.ziehung || {};
+        stand.verfallen = w.verfallen || {};
+      }
+      sync.ziehungV = antwort.ziehung.v;
+    } else if (eigeneZiehungGilt) {
+      sync.ziehungV = antwort.ziehung.v;
+    }
+    // Sonst bleibt der bekannte Stand stehen: Hat inzwischen ein anderes Gerät gezogen,
+    // lehnt die Ablage die eigene, noch offene Ziehung beim nächsten Abgleich ab.
+
+    if (!sync.offen.config) {
+      if (antwort.config.v !== sync.configV && antwort.config.wert) {
+        config = configPruefen({ ...antwort.config.wert, losSeite: config.losSeite }, preise);
+      }
+      sync.configV = antwort.config.v;
+    }
+
+    sync.cursor = antwort.cursor;
+    sync.kontakt = jetzt;
+    sync.geraete = antwort.geraete;
+    return { config, meldung };
+  }
+
+  // Dieses Gerät hat die Liste selbst für alle geleert.
+  function abgleichGeleert(sync, stand, epoche) {
+    standLeeren(stand);
+    sync.epoche = epoche;
+    sync.cursor = 0;
+    sync.offen = { lose: [], storno: [], ziehung: 0, config: sync.offen.config };
+  }
+
   const api = {
     NIETE, GLUEHWEIN, BIER, STANDARD_CONFIG,
     configPruefen, leererStand, standPruefen,
@@ -261,7 +435,9 @@
     nrText, losLink, linkLesen,
     imTopf, gezogene, topfFertig, ziehen, neuZiehen,
     gewinnerDatei, losStatus, gewinnerListe, nummerSuchen, kontaktLinks, losPruefen, statistik,
-    sicherung, sicherungLesen
+    sicherung, sicherungLesen,
+    bereich, teamCode, codeText, codeLesen,
+    abgleichNeu, abgleichVormerken, abgleichOffen, abgleichAnfrage, abgleichAntwort, abgleichGeleert
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Tombola = api;

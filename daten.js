@@ -14,6 +14,9 @@
       mail: 'gregor.hoeller.vtr@gmail.com',
       whatsapp: '+436648543200'    // Handynummer mit Ländervorwahl
     },
+    // Adresse der gemeinsamen Liste für mehrere Verkaufsgeräte (das Programm im Ordner "ablage", bei Cloudflare).
+    // Leer = jedes Gerät verkauft nur für sich.
+    ablage: '',
     preise: [
       { id: 'ski',    name: 'Fischer Ski',                 topf: 'Fischer Ski',                 ziehungen: 1 },
       { id: 'reifen', name: 'Reifen von RWA',              topf: 'Reifen von RWA',              ziehungen: 1 },

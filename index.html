@@ -34,6 +34,12 @@
   <button class="knopf" data-aktion="sichern">Jetzt sichern</button>
 </div>
 
+<div class="hinweis status" id="listenStatus" hidden role="status"></div>
+<div class="hinweis warn" id="listenMeldung" hidden>
+  <span id="listenMeldungText"></span>
+  <button class="knopf" id="listenMeldungOk">OK</button>
+</div>
+
 <main>
   <!-- ======================================================= Verkauf -->
   <section id="verkauf">
@@ -55,12 +61,17 @@
 
     <h2>Zuletzt verkauft</h2>
     <ul class="liste" id="letzte"></ul>
-    <p class="klein-text nur-hier">Die Lose liegen nur auf diesem Gerät. Bitte immer am selben Gerät verkaufen – ein zweites Gerät führt eine eigene Liste und zählt wieder ab Nr. 0001.</p>
+    <p class="klein-text nur-hier" id="nurHier"></p>
   </section>
 
   <!-- ======================================================= Ziehung -->
   <section id="ziehung" hidden>
     <p class="text">Jeder Topf wird für sich gezogen. Ein gezogenes Los kann nicht noch einmal gewinnen.</p>
+    <div id="geraeteKasten" hidden>
+      <h2>Verkaufsgeräte</h2>
+      <p class="text">Vor der Ziehung sollen alle Geräte ihre Lose abgegeben haben. Ein Gerät, das sich länger nicht gemeldet hat, bitte kurz mit Empfang öffnen.</p>
+      <ul class="liste" id="geraeteListe"></ul>
+    </div>
     <h2>Töpfe</h2>
     <div class="toepfe" id="toepfe"></div>
 
@@ -115,6 +126,22 @@
     </div>
     <p class="text matt" id="losSeiteText"></p>
 
+    <h2>Mehrere Geräte</h2>
+    <p class="text" id="listeText"></p>
+    <div class="zeile" id="listeNeu" hidden>
+      <button class="knopf" id="listeAnlegen">Gemeinsame Liste anlegen</button>
+    </div>
+    <form class="zeile" id="listeBeitreten" hidden>
+      <label class="feld">Team-Code eines anderen Geräts
+        <input class="breit" id="fTeamCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX">
+      </label>
+      <button class="knopf" type="submit">Beitreten</button>
+    </form>
+    <div class="zeile" id="listeDabei" hidden>
+      <button class="knopf" id="geraetHinzu">Gerät hinzufügen</button>
+      <button class="knopf leise" id="listeVerlassen">Gemeinsame Liste verlassen</button>
+    </div>
+
     <h2>Sicherung</h2>
     <p class="text" id="sicherungStand"></p>
     <div class="zeile">
@@ -124,7 +151,7 @@
     </div>
 
     <h2>Neu anfangen</h2>
-    <p class="text">Löscht alle verkauften Lose und die Ziehung auf diesem Gerät. Die Einstellungen bleiben.</p>
+    <p class="text" id="loeschenText"></p>
     <div class="zeile"><button class="knopf" id="allesLoeschen">Alle Lose löschen</button></div>
   </section>
 </main>
@@ -146,6 +173,33 @@
       </div>
     </div>
   </div>
+</dialog>
+
+<!-- Gerät hinzufügen: QR-Code und Team-Code der gemeinsamen Liste -->
+<dialog id="teamDialog" aria-labelledby="teamTitel">
+  <div class="team-dialog">
+    <div class="block" id="teamTitel">Gerät hinzufügen</div>
+    <p class="text">Mit der Kamera des neuen Geräts scannen. Es öffnet die Stand-App und fragt, ob es beitreten soll.</p>
+    <div class="qr" id="teamQr"></div>
+    <p class="text">Oder dort unter Einstellungen diesen Team-Code eintippen:</p>
+    <div class="team-code ziffern" id="teamCodeText"></div>
+    <p class="klein-text">Wer diesen Code hat, kann alle Lose sehen und ändern. Bitte nur im Team zeigen.</p>
+    <div class="zeile"><button class="knopf rot" id="teamFertig">Fertig</button></div>
+  </div>
+</dialog>
+
+<!-- Liste anlegen oder beitreten: Name des Geräts -->
+<dialog id="beitrittDialog">
+  <form method="dialog" class="frage">
+    <p id="beitrittText"></p>
+    <label class="feld">Name dieses Geräts
+      <input class="breit" id="beitrittName" maxlength="40" autocomplete="off" placeholder="z. B. Handy Gregor">
+    </label>
+    <div class="zeile">
+      <button class="knopf" value="nein" id="beitrittNein">Abbrechen</button>
+      <button class="knopf rot" value="ja" id="beitrittJa">Beitreten</button>
+    </div>
+  </form>
 </dialog>
 
 <!-- Rückfrage -->
