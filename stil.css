@@ -489,3 +489,5 @@ body.los::after {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+.nur-hier { margin: 0.8rem 0.2rem 0; }
