@@ -36,6 +36,26 @@
   const standSpeichern = () => schreiben(LS_STAND, stand);
   const configSpeichern = () => schreiben(LS_CONFIG, config);
 
+  // Maßgeblich ist der Speicher des Geräts, nicht dieses Fenster. Ist die App ein zweites Mal offen
+  // (zweiter Tab, ein Fenster von gestern), hat das andere Fenster vielleicht inzwischen verkauft.
+  // Darum vor jeder Änderung neu lesen – sonst überschreibt ein altes Fenster die Lose des anderen.
+  function nachladen() {
+    const s = lesen(LS_STAND);
+    if (s) stand = T.standPruefen(s);
+    const c = lesen(LS_CONFIG);
+    if (c) config = T.configPruefen(c, PREISE);
+  }
+  // Hinter einem offenen Los wird nicht neu gezeichnet – die Listen würden das Ergebnis verraten.
+  function auffrischen() {
+    nachladen();
+    if (!$('losDialog').open) zeichnen();
+  }
+  window.addEventListener('storage', (e) => {
+    if (e.key === null || e.key === LS_STAND || e.key === LS_CONFIG) auffrischen();
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) auffrischen(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) auffrischen(); });
+
   function rand01() {
     const b = new Uint32Array(1);
     crypto.getRandomValues(b);
@@ -94,6 +114,7 @@
   let offenesLos = null;
 
   $('verkaufen').addEventListener('click', () => {
+    nachladen();
     const los = T.verkaufen(stand, config, PREISE, rand01, Date.now());
     standSpeichern();
     zeigeLos(los);   // Die Listen dahinter werden erst nach dem Schließen neu gezeichnet – sonst verraten sie das Ergebnis.
@@ -141,6 +162,7 @@
     const los = offenesLos;
     if (!los) return;
     if (!await frage('Los Nr. ' + T.nrText(los.nr) + ' stornieren? Es zählt dann nicht mehr und nimmt an keiner Ziehung teil.', 'Stornieren')) return;
+    nachladen();
     T.stornieren(stand, los.nr);
     standSpeichern();
     $('losDialog').close();
@@ -197,6 +219,7 @@
           neu.addEventListener('click', async () => {
             const text = 'Los Nr. ' + T.nrText(nr) + ' verfällt und es wird ein anderes gezogen. Nur verwenden, wenn der Preis nicht abgeholt wurde.';
             if (!await frage(text, 'Neu ziehen')) return;
+            nachladen();
             T.neuZiehen(stand, p, nr, rand01);
             standSpeichern();
             zeichnen();
@@ -218,6 +241,7 @@
         knopf.textContent = p.ziehungen > 1 ? 'Ziehen (' + (gezogen.length + 1) + ' von ' + p.ziehungen + ')' : 'Ziehen';
         knopf.addEventListener('click', async () => {
           if (!await frage('Jetzt für „' + p.name + '“ ziehen?', 'Ziehen')) return;
+          nachladen();
           T.ziehen(stand, p, rand01);
           standSpeichern();
           zeichnen();
@@ -240,15 +264,18 @@
   }
 
   $('abholfrist').addEventListener('change', (e) => {
+    nachladen();
     config = T.configPruefen({ ...config, abholfrist: e.target.value }, PREISE);
     configSpeichern();
   });
   $('gewinnerLaden').addEventListener('click', () => {
+    nachladen();
     herunterladen('gewinner.json', T.gewinnerDatei(stand, config, PREISE, Date.now()));
   });
 
   $('pruefForm').addEventListener('submit', (e) => {
     e.preventDefault();
+    nachladen();
     const r = T.losPruefen(stand, $('pruefNr').value.trim(), $('pruefCode').value);
     const aus = $('pruefErgebnis');
     let text;
@@ -270,6 +297,7 @@
   function configAusFormular() {
     const gewichte = {};
     PREISE.forEach((p) => { gewichte[p.id] = $('gew-' + p.id).value; });
+    nachladen();
     config = T.configPruefen({
       ...config,
       preis: $('fPreis').value,
@@ -337,6 +365,7 @@
   const ungesichert = () => stand.lose.filter((l) => l.t > stand.letzteSicherung).length;
 
   function sichern() {
+    nachladen();
     const jetzt = Date.now();
     const d = new Date(jetzt);
     const zwei = (n) => String(n).padStart(2, '0');
@@ -361,6 +390,7 @@
       await frage(err instanceof SyntaxError ? 'Die Datei lässt sich nicht lesen.' : err.message, 'OK');
       return;
     }
+    nachladen();
     const text = 'Sicherung mit ' + zahl(neu.stand.lose.length) + ' Losen einspielen? Die ' + zahl(stand.lose.length)
       + ' Lose, die jetzt auf diesem Gerät liegen, werden ersetzt.';
     if (!await frage(text, 'Einspielen')) return;
@@ -372,6 +402,7 @@
   });
 
   $('allesLoeschen').addEventListener('click', async () => {
+    nachladen();
     const text = 'Wirklich alle ' + zahl(stand.lose.length) + ' Lose und die Ziehung löschen? Zurückholen geht nur mit einer Sicherungsdatei.';
     if (!await frage(text, 'Alles löschen')) return;
     stand = T.leererStand();
