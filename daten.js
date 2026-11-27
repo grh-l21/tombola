@@ -8,7 +8,7 @@
     // Steht auf der Los-Seite unter dem Titel.
     verein: 'der Vöcklabrucker Tafelrunde',
     // Steht auf jedem Los, das im Preistopf liegt.
-    ziehung: 'Die Ziehung ist am Samstag, 19. Dezember, um 20 Uhr am Stand.',
+    ziehung: 'Die Ziehung ist am Samstag, 19. Dezember, um 17 Uhr am Stand.',
     // Wer bei der Ziehung nicht dabei ist, kann dem Verein sein Los schicken und wird bei einem Gewinn verständigt.
     // Hier die Adresse des Vereins eintragen – eine oder beide. Bleibt beides leer, gibt es den Knopf am Los nicht.
     kontakt: {
@@ -25,7 +25,10 @@
       { id: 'reifen', name: 'Reifen von RWA',              ziehungen: 1 },
       { id: 'gastro', name: 'Gastrogutschein',             ziehungen: 3 },
       { id: 'vip',    name: '2 VIP-Karten Blau-Weiß Linz', ziehungen: 1 },
-      { id: 'stella', name: '2 Karten für Pavlo Stella',   ziehungen: 1 }
+      { id: 'stella', name: '2 Karten für Pavlo Stella',   ziehungen: 1 },
+      { id: 'earbuds',  name: 'Skullcandy Earbuds',              ziehungen: 15 },
+      { id: 'autocare', name: 'Mercedes Pappas Auto-Care Paket', ziehungen: 1 },
+      { id: 'hotel',    name: 'Hotelgutschein',                  ziehungen: 1 }
     ]
   };
   // Die Tombola ist umgezogen. Wer noch die frühere Adresse öffnet (github.io), wird zur neuen geschickt –
