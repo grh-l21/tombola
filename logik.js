@@ -102,6 +102,20 @@
     return { nr, erg: m[2], pruef: m[3] };
   }
 
+  // Gegencheck am Stand: Wer das Los eines Kunden mit einem Stand-Handy scannt, kommt von der Los-Seite
+  // mit diesem Link in die Stand-App – dort wird das Los geprüft und das Getränk als ausgegeben vermerkt.
+  function pruefLink(losAdresse, los) {
+    const ordner = String(losAdresse).split('#')[0].split('?')[0].replace(/[^/]*$/, '');
+    return ordner + '#pruefen=' + los.nr + '-' + los.pruef;
+  }
+  function pruefLinkLesen(hash) {
+    const m = /^#pruefen=(\d{1,6})-([A-Z2-9]{4})$/.exec(String(hash || ''));
+    if (!m) return null;
+    const nr = Number(m[1]);
+    if (nr < 1) return null;
+    return { nr, pruef: m[2] };
+  }
+
   // Die Ziehung wird je Preis geführt: Preis-id -> Liste der gezogenen Losnummern.
   function gezogene(stand, id) { return stand.ziehung[id] || []; }
 
@@ -483,7 +497,7 @@
     GETRAENK, TOPF, STANDARD_CONFIG,
     configPruefen, leererStand, standPruefen,
     auslosen, pruefcode, verkaufen, stornieren,
-    nrText, losLink, linkLesen,
+    nrText, losLink, linkLesen, pruefLink, pruefLinkLesen,
     imTopf, gezogene, stornoGezogen, gueltigGezogene, topfFertig, gewinnVon, ziehen, neuZiehen,
     gewinnerDatei, losGewinn, losStatus, preisListe, kontaktLinks, losPruefen, ausgeben, statistik,
     sicherung, sicherungLesen,

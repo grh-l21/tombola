@@ -46,6 +46,21 @@
   $('pruef').textContent = los.pruef;
   $('karte').hidden = false;
 
+  // Gegencheck am Stand: Scannt jemand vom Stand das Los eines Kunden mit dem eigenen Handy, landet er hier.
+  // Auf einem Gerät, das die Stand-App verwendet, führt ein Balken oben weiter zu "Los prüfen und ausgeben".
+  // Kundenhandys haben diese Einträge nicht und sehen den Balken nie.
+  const standGeraet = (() => {
+    try {
+      if (localStorage.getItem('tombola.sync.v1')) return true;
+      const stand = JSON.parse(localStorage.getItem('tombola.stand.v1') || 'null');
+      return !!(stand && Array.isArray(stand.lose) && stand.lose.length);
+    } catch (e) { return false; }
+  })();
+  if (standGeraet) {
+    $('standBalken').href = T.pruefLink(location.href, los);
+    $('standBalken').hidden = false;
+  }
+
   // ---------- Inhalte je nach Ergebnis ----------
   // Es gibt zwei Arten von Losen: ein Getränk (Glühwein oder Schnaitl Bier) oder ein Los im Preistopf.
   // "stufe" legt fest, wie groß nach dem Rubbeln gefeiert wird:
@@ -106,6 +121,23 @@
       knoepfe.append(a);
     });
     kasten.append(knoepfe, el('small', '', 'Deine Nachricht verwenden wir nur, um dich wegen deines Loses zu erreichen, und löschen sie danach.'));
+    return kasten;
+  }
+
+  // Der QR-Code steht auch am offenen Los, nicht nur am gespeicherten Bild: So scannt der Stand immer gleich.
+  function qrKasten(status) {
+    if (status !== 'getraenk' && status !== 'gewonnen') return null;
+    let svg;
+    try { svg = window.QR.svg(location.href); } catch (e) { return null; }
+    const kasten = el('div', 'kontakt vorzeigen');
+    const qr = el('div', 'qr');
+    qr.innerHTML = svg;
+    const worte = el('div');
+    worte.append(
+      el('h2', '', 'Am Stand vorzeigen'),
+      el('p', '', 'Wir scannen diesen QR-Code, bevor du ' + (status === 'getraenk' ? 'dein Getränk' : 'deinen Gewinn') + ' bekommst. Jedes Los gilt nur einmal.')
+    );
+    kasten.append(worte, qr);
     return kasten;
   }
 
@@ -415,6 +447,8 @@
     if (ohneNetz && status === 'imTopf') {
       details.append(el('p', 'klein-text', 'Gerade keine Verbindung: Ob dein Los schon gezogen wurde, siehst du hier erst wieder mit Internet.'));
     }
+    const vorzeigen = qrKasten(status);
+    if (vorzeigen) details.append(vorzeigen);
     const speichern = speicherKasten(status, datei);
     if (speichern) details.append(speichern);
     const kasten = kontaktKasten(status, datei);

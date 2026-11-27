@@ -26,6 +26,7 @@
   </div>
   <nav class="reiter" role="tablist" aria-label="Bereiche">
     <button role="tab" id="reiter-verkauf" aria-controls="verkauf" data-ansicht="verkauf" aria-selected="true">Verkauf</button>
+    <button role="tab" id="reiter-pruefen" aria-controls="pruefen" data-ansicht="pruefen" aria-selected="false" tabindex="-1">Prüfen</button>
     <button role="tab" id="reiter-ziehung" aria-controls="ziehung" data-ansicht="ziehung" aria-selected="false" tabindex="-1">Ziehung</button>
     <button role="tab" id="reiter-einstellungen" aria-controls="einstellungen" data-ansicht="einstellungen" aria-selected="false" tabindex="-1">Einstellungen</button>
   </nav>
@@ -71,6 +72,20 @@
     <p class="klein-text nur-hier" id="nurHier"></p>
   </section>
 
+  <!-- ==================================================== Los prüfen -->
+  <section id="pruefen" role="tabpanel" aria-labelledby="reiter-pruefen" hidden>
+    <h2>Los prüfen und ausgeben</h2>
+    <div class="ergebnis-zeile" id="pruefErgebnis" hidden role="status"></div>
+    <div class="zeile"><button class="knopf rot gross" id="pruefAus" hidden>Als ausgegeben vermerken</button></div>
+    <p class="text"><b>Am schnellsten:</b> mit der Kamera dieses Handys den QR-Code am Los des Kunden scannen und oben auf „Los prüfen und ausgeben“ tippen. <b>Oder</b> Losnummer und Prüfcode hier eintippen:</p>
+    <form class="zeile" id="pruefForm">
+      <label class="feld">Losnummer <input class="kurz" id="pruefNr" inputmode="numeric" autocomplete="off"></label>
+      <label class="feld">Prüfcode <input class="kurz" id="pruefCode" autocomplete="off" autocapitalize="characters" maxlength="4"></label>
+      <button class="knopf" type="submit">Prüfen</button>
+    </form>
+    <p class="text">Bevor ihr ein Getränk oder einen Preis hergebt: Los prüfen und als ausgegeben vermerken. Dann fällt auf, wenn dasselbe Los ein zweites Mal kommt – auch als weitergeschicktes Bild. Die Anzeige am Kundenhandy allein ist kein Beweis.</p>
+  </section>
+
   <!-- ======================================================= Ziehung -->
   <section id="ziehung" role="tabpanel" aria-labelledby="reiter-ziehung" hidden>
     <p class="text">Alle Preise werden aus dem einen Preistopf gezogen, einer nach dem anderen. Ein gezogenes Los kann nicht noch einmal gewinnen.</p>
@@ -93,16 +108,6 @@
       </label>
       <button class="knopf" id="gewinnerLaden">Gewinnnummern herunterladen</button>
     </div>
-
-    <h2>Los prüfen</h2>
-    <p class="text">Bei der Abholung Losnummer und Prüfcode vom Handy eintippen – auch bei einem Getränke-Los, wenn jemand später damit kommt. Die Anzeige am Kundenhandy allein ist kein Beweis.</p>
-    <form class="zeile" id="pruefForm">
-      <label class="feld">Losnummer <input class="kurz" id="pruefNr" inputmode="numeric" autocomplete="off"></label>
-      <label class="feld">Prüfcode <input class="kurz" id="pruefCode" autocomplete="off" autocapitalize="characters" maxlength="4"></label>
-      <button class="knopf" type="submit">Prüfen</button>
-    </form>
-    <div class="ergebnis-zeile" id="pruefErgebnis" hidden role="status"></div>
-    <div class="zeile"><button class="knopf rot" id="pruefAus" hidden>Als ausgegeben vermerken</button></div>
   </section>
 
   <!-- ================================================= Einstellungen -->

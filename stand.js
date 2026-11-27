@@ -170,7 +170,7 @@
       b.setAttribute('aria-selected', String(an));
       b.tabIndex = an ? 0 : -1;
     });
-    ['verkauf', 'ziehung', 'einstellungen'].forEach((id) => { $(id).hidden = id !== ansicht; });
+    ['verkauf', 'pruefen', 'ziehung', 'einstellungen'].forEach((id) => { $(id).hidden = id !== ansicht; });
     zeichnen();
   }
   reiter.forEach((b) => b.addEventListener('click', () => zeige(b.dataset.ansicht)));
@@ -645,17 +645,44 @@
     herunterladen('gewinner.json', T.gewinnerDatei(stand, config, PREISE, Date.now()));
   });
 
-  $('pruefForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (sync) await abgleichen();   // damit auch ein eben erst verkauftes Los eines anderen Geräts bekannt ist
+  // Vor dem Prüfen die gemeinsame Liste holen: So ist auch ein Los bekannt, das ein anderes Gerät eben erst verkauft hat,
+  // und es fällt auf, wenn ein anderes Gerät dafür schon ausgegeben hat.
+  let pruefLauf = 0;
+  async function pruefeLos() {
+    const lauf = ++pruefLauf;
+    const nr = $('pruefNr').value.trim();
+    const code = $('pruefCode').value;
+    const frisch = sync ? await abgleichen() : true;
+    if (lauf !== pruefLauf) return;   // inzwischen wurde etwas anderes eingetippt oder gescannt
     nachladen();
-    zeigePruefung(T.losPruefen(stand, $('pruefNr').value.trim(), $('pruefCode').value));
+    zeigePruefung(T.losPruefen(stand, nr, code), !frisch);
+  }
+  $('pruefForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    pruefeLos();
   });
+
+  // Gegencheck mit der Handy-Kamera: Der QR-Code am Los des Kunden öffnet die Los-Seite. Auf einem Gerät des Stands
+  // führt von dort ein Knopf hierher – die Adresse endet dann auf #pruefen=Nummer-Prüfcode.
+  function pruefenAusAdresse() {
+    const los = T.pruefLinkLesen(location.hash);
+    if (!los) return;
+    history.replaceState(null, '', location.pathname + location.search);   // beim Neuladen nicht noch einmal prüfen
+    zeige('pruefen');
+    $('pruefNr').value = String(los.nr);
+    $('pruefCode').value = los.pruef;
+    $('pruefErgebnis').textContent = 'Los Nr. ' + T.nrText(los.nr) + ' wird geprüft …';
+    $('pruefErgebnis').className = 'ergebnis-zeile';
+    $('pruefErgebnis').hidden = false;
+    $('pruefAus').hidden = true;
+    $('pruefen').scrollIntoView({ block: 'start' });
+    pruefeLos();
+  }
 
   const wann = (t) => new Date(t).toLocaleString('de-AT', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
   let geprueft = null;   // Nummer des Loses, für das gerade "Als ausgegeben vermerken" angeboten wird
 
-  function zeigePruefung(r) {
+  function zeigePruefung(r, ohneListe) {
     const aus = $('pruefErgebnis');
     let text;
     let gut = false;
@@ -670,6 +697,12 @@
       else { text = 'Gültig – ' + was + '. Noch nicht ausgegeben.'; gut = true; geprueft = r.los.nr; }
     } else if (r.los.erg === T.TOPF) text = 'Gültiges Los im Preistopf. Es wurde nicht gezogen.';
     else text = 'Los aus einem Testlauf vor der Umstellung – gilt nicht mehr.';
+    // Ohne Verbindung kennt dieses Gerät nur den Stand vom letzten Abgleich.
+    if (ohneListe && r.status !== 'falscherCode' && r.status !== 'storno') {
+      text += r.status === 'unbekannt'
+        ? ' Gerade keine Verbindung zur gemeinsamen Liste – vielleicht hat es ein anderes Gerät verkauft. Mit Empfang noch einmal prüfen.'
+        : gut ? ' Achtung: gerade keine Verbindung zur gemeinsamen Liste – ein anderes Gerät könnte dafür schon ausgegeben haben.' : '';
+    }
     aus.textContent = text;
     aus.className = 'ergebnis-zeile ' + (gut ? 'gut' : 'schlecht');
     aus.hidden = false;
@@ -686,6 +719,7 @@
     aus.className = 'ergebnis-zeile gut';
   });
   ['pruefNr', 'pruefCode'].forEach((id) => $(id).addEventListener('input', () => {
+    pruefLauf++;
     geprueft = null;
     $('pruefAus').hidden = true;
     $('pruefErgebnis').hidden = true;
@@ -1222,6 +1256,8 @@
   window.addEventListener('online', () => abgleichen());
   window.addEventListener('hashchange', beitrittAusAdresse);
   beitrittAusAdresse();
+  window.addEventListener('hashchange', pruefenAusAdresse);
+  pruefenAusAdresse();
 
   // Ohne Internet starten: nur auf https oder localhost möglich.
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

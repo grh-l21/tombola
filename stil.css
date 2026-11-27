@@ -182,6 +182,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, canvas:focus-visible
 .ergebnis-zeile { margin-top: 8px; padding: 12px 16px; border: 1.5px solid var(--f-linie); border-left: 10px solid var(--f-matt); border-radius: 14px; background: var(--f-papier); font-weight: 700; }
 .ergebnis-zeile.gut { border-left-color: var(--f-tanne); }
 .ergebnis-zeile.schlecht { border-left-color: var(--f-rot); }
+#pruefen .ergebnis-zeile { font-size: 1.12em; margin-bottom: 12px; }
+#pruefen #pruefAus { flex: 1; margin-bottom: 14px; }
+#pruefen .ergebnis-zeile.schlecht { background: #FBE9E7; }
+#pruefen .ergebnis-zeile.gut { background: #E8F3EA; }
 
 .tabelle { width: 100%; max-width: 640px; border-collapse: collapse; }
 .tabelle th, .tabelle td { text-align: left; padding: 6px 10px 6px 0; }
@@ -347,6 +351,18 @@ body.los::after {
 .kontakt .knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .kontakt .knopf { flex: 1 1 auto; min-height: 48px; text-decoration: none; font-size: 0.94em; }
 .kontakt small { font-size: 0.84em; line-height: 1.35; color: var(--f-matt); }
+/* QR-Code am offenen Los: Der Stand scannt ihn, bevor er ein Getränk oder einen Preis ausgibt. */
+.kontakt.vorzeigen { align-items: center; text-align: center; gap: 10px; }
+.kontakt.vorzeigen .qr { width: 176px; padding: 8px; border-radius: 12px; }
+.kontakt.vorzeigen > div:last-child { display: flex; flex-direction: column; gap: 4px; }
+/* Nur auf Geräten des Stands: führt vom gescannten Los zur Prüfung in der Stand-App. */
+.stand-balken {
+  position: sticky; top: 0; z-index: 20; align-self: stretch; display: block;
+  margin: 0 calc(-1 * max(14px, env(safe-area-inset-right))) 0 calc(-1 * max(14px, env(safe-area-inset-left)));
+  padding: 14px 18px; background: var(--f-gold-hell); color: var(--f-nacht);
+  font-size: 1.05em; text-align: center; text-decoration: none; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.stand-balken[hidden] { display: none; }
 
 .fuss { border-top: 3px dashed rgba(29, 42, 92, 0.3); padding: 12px 22px 14px; display: flex; justify-content: space-between; gap: 12px; font-size: 0.9em; }
 .fuss b { letter-spacing: 0.14em; }
