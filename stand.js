@@ -1212,7 +1212,7 @@
       ? 'Die gemeinsame Liste für mehrere Verkaufsgeräte ist noch nicht eingerichtet. Bis dahin bitte nur an einem Gerät verkaufen.'
       : sync
         ? 'Dieses Gerät ist Gerät ' + sync.geraet + (sync.name ? ' („' + sync.name + '“)' : '') + ' der gemeinsamen Liste. Seine Losnummern beginnen bei '
-          + T.nrText(T.bereich(sync.geraet)[0]) + '. Preis, Quoten und Töpfe gelten für alle Geräte gemeinsam.'
+          + T.nrText(T.bereich(sync.geraet)[0]) + '. Preis, Quote und Abholfrist gelten für alle Geräte gemeinsam.'
         : 'Sollen mehrere Geräte verkaufen, tippt das erste auf „Mit mehreren Geräten verkaufen“. Es legt damit eine gemeinsame Liste an und zeigt einen QR-Code. Jedes weitere Gerät scannt ihn oder tippt hier den Team-Code ein.';
     $('loeschenText').textContent = sync
       ? 'Löscht alle verkauften Lose und die Ziehung auf allen Geräten der gemeinsamen Liste. Die Einstellungen bleiben.'

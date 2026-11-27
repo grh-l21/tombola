@@ -162,14 +162,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, canvas:focus-visible
 .marke-g { color: var(--f-rot); font-weight: 700; }
 
 /* Ziehung */
-.toepfe { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
-.topf { border: 1.5px solid var(--f-linie); border-top: 8px solid var(--f-nacht); border-radius: 18px; background: var(--f-papier); padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px; }
-.topf h3 { font-size: 1.2em; font-weight: 800; line-height: 1.2; }
+/* Ziehung: ein einziger Preistopf. Darin stehen die Preise als Zeilen – jede Zeile zieht aus demselben Topf. */
+.preistopf { border: 1.5px solid var(--f-linie); border-top: 10px solid var(--f-nacht); border-radius: 18px; background: var(--f-papier); padding: 14px 18px 6px; }
+.preistopf .schwung { color: var(--f-rot); font-size: 1.5em; line-height: 1.1; }
+.preistopf .topf-stand { margin: 2px 0 4px; font-weight: 800; font-size: 1.15em; }
+.toepfe { display: flex; flex-direction: column; margin-top: 10px; }
+.topf { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 14px; padding: 14px 0; border-top: 2px dashed rgba(29, 42, 92, 0.3); }
+.topf > * { grid-column: 1 / -1; }
+.topf h3 { grid-column: 1; grid-row: 1; font-size: 1.2em; font-weight: 800; line-height: 1.2; }
+.topf > .matt { grid-column: 1; grid-row: 2; }
+.topf > .knopf.rot { grid-column: 2; grid-row: 1 / span 2; min-width: 9.5em; }
 .topf .gezogen { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.topf .gezogen li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; border-top: 2px dashed rgba(29, 42, 92, 0.3); padding-top: 8px; }
+.topf .gezogen li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; padding: 8px 12px; border-radius: 12px; background: #FBF8F0; }
 .topf .gezogen .nummer { font-weight: 800; font-size: 32px; line-height: 1.05; white-space: nowrap; color: var(--f-rot); }
 .topf .gezogen .knopf { white-space: nowrap; padding: 0.3em 0.9em; font-size: 0.9em; }
-.topf .knopf { margin-top: auto; }
+@media (max-width: 480px) {
+  .topf { grid-template-columns: 1fr; }
+  .topf > .knopf.rot { grid-column: 1; grid-row: auto; }
+}
 
 .zeile { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 10px 0; }
 .feld { display: flex; flex-direction: column; gap: 4px; font-size: 0.86em; font-weight: 700; }
