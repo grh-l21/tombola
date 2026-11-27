@@ -61,12 +61,9 @@
       <div class="zahl"><b class="ziffern" id="zHeute">0</b><span>Lose heute</span></div>
       <div class="zahl"><b class="ziffern" id="zGesamt">0</b><span>Lose gesamt</span></div>
       <div class="zahl"><b class="ziffern" id="zEinnahmen">0</b><span>Einnahmen in €</span></div>
-      <div class="zahl"><b class="ziffern" id="zGluehwein">0</b><span>Glühwein gewonnen</span></div>
-      <div class="zahl"><b class="ziffern" id="zBier">0</b><span>Schnaitl gewonnen</span></div>
+      <div class="zahl"><b class="ziffern" id="zGetraenk">0</b><span>Getränke-Lose</span></div>
+      <div class="zahl"><b class="ziffern" id="zTopf">0</b><span>Lose im Preistopf</span></div>
     </div>
-
-    <h2>Lose in den Töpfen</h2>
-    <ul class="liste" id="topfListe"></ul>
 
     <h2>Zuletzt verkauft</h2>
     <p class="klein-text" id="letzteHinweis" hidden>Ein Los antippen zeigt seinen QR-Code noch einmal – zum Beispiel, wenn der Kunde noch nicht gescannt hat.</p>
@@ -76,7 +73,7 @@
 
   <!-- ======================================================= Ziehung -->
   <section id="ziehung" role="tabpanel" aria-labelledby="reiter-ziehung" hidden>
-    <p class="text">Jeder Topf wird für sich gezogen. Ein gezogenes Los kann nicht noch einmal gewinnen.</p>
+    <p class="text">Alle Preise werden aus dem einen Preistopf gezogen, einer nach dem anderen. Ein gezogenes Los kann nicht noch einmal gewinnen.</p>
     <p class="text">Beim Ziehen rollen die Zahlen mit Trommelwirbel, bis ihr „Aufdecken“ antippt. Für die Übertragung das Gerät an die Lautsprecherbox hängen und vorher den Ton prüfen.</p>
     <div class="zeile"><button class="knopf" id="tonTest">Ton testen</button></div>
     <div id="geraeteKasten" hidden>
@@ -84,7 +81,8 @@
       <p class="text">Vor der Ziehung sollen alle Geräte ihre Lose abgegeben haben. Ein Gerät, das sich länger nicht gemeldet hat, bitte kurz mit Empfang öffnen.</p>
       <ul class="liste" id="geraeteListe"></ul>
     </div>
-    <h2>Töpfe</h2>
+    <h2>Preise ziehen</h2>
+    <p class="text" id="topfStand" role="status"></p>
     <div class="toepfe" id="toepfe"></div>
 
     <h2>Gewinnnummern veröffentlichen</h2>
@@ -97,7 +95,7 @@
     </div>
 
     <h2>Los prüfen</h2>
-    <p class="text">Bei der Abholung Losnummer und Prüfcode vom Handy eintippen – auch bei Glühwein und Schnaitl, wenn jemand später damit kommt. Die Anzeige am Kundenhandy allein ist kein Beweis.</p>
+    <p class="text">Bei der Abholung Losnummer und Prüfcode vom Handy eintippen – auch bei einem Getränke-Los, wenn jemand später damit kommt. Die Anzeige am Kundenhandy allein ist kein Beweis.</p>
     <form class="zeile" id="pruefForm">
       <label class="feld">Losnummer <input class="kurz" id="pruefNr" inputmode="numeric" autocomplete="off"></label>
       <label class="feld">Prüfcode <input class="kurz" id="pruefCode" autocomplete="off" autocapitalize="characters" maxlength="4"></label>
@@ -109,21 +107,17 @@
 
   <!-- ================================================= Einstellungen -->
   <section id="einstellungen" role="tabpanel" aria-labelledby="reiter-einstellungen" hidden>
-    <h2>Lospreis und Quoten</h2>
+    <h2>Lospreis und Quote</h2>
+    <p class="text">Es gibt zwei Arten von Losen: ein Getränk (Glühwein oder Schnaitl Bier) oder ein Los im Preistopf für die Ziehung.</p>
     <div class="zeile">
       <label class="feld">Preis pro Los (€) <input class="kurz" id="fPreis" type="number" min="0" step="0.5" inputmode="decimal"></label>
-      <label class="feld">Glühwein (%) <input class="kurz" id="fGluehwein" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
-      <label class="feld">Schnaitl (%) <input class="kurz" id="fBier" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
-      <label class="feld">Topf-Los (%) <input class="kurz" id="fTopf" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
+      <label class="feld">Getränke-Lose (%) <input class="kurz" id="fGetraenk" type="number" min="0" max="100" step="1" inputmode="numeric"></label>
     </div>
-    <p class="text" id="nietenText"></p>
+    <p class="text" id="quoteText"></p>
 
-    <h2>Töpfe</h2>
-    <table class="tabelle">
-      <thead><tr><th>Preis</th><th class="r">Gewicht</th><th class="r">Chance pro Los</th></tr></thead>
-      <tbody id="gewichte"></tbody>
-    </table>
-    <p class="text matt">Ein höheres Gewicht schickt mehr Lose in diesen Topf. Gewicht 0 nimmt den Topf heraus.</p>
+    <h2>Im Preistopf</h2>
+    <p class="text">Diese Preise werden bei der Ziehung aus dem Preistopf gezogen:</p>
+    <ul class="liste" id="preisListe"></ul>
 
     <h2>Adresse der Los-Seite</h2>
     <p class="text">Diese Adresse steckt im QR-Code. Leer lassen, wenn die Los-Seite neben dieser App liegt.</p>

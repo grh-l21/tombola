@@ -61,7 +61,7 @@
     }, 0);
   }
 
-  let config = T.configPruefen(lesen(LS_CONFIG), PREISE);
+  let config = T.configPruefen(lesen(LS_CONFIG));
   let stand = T.standPruefen(lesen(LS_STAND));
   const standSpeichern = () => schreiben(LS_STAND, stand);
   const configSpeichern = () => schreiben(LS_CONFIG, config);
@@ -100,7 +100,7 @@
     }
     if (!kaputt.has(LS_CONFIG)) {
       const c = lesen(LS_CONFIG);
-      if (c) config = T.configPruefen(c, PREISE);
+      if (c) config = T.configPruefen(c);
     }
     if (!kaputt.has(LS_SYNC) && !kaputt.has(LS_STAND)) sync = syncLesen();
   }
@@ -149,12 +149,11 @@
   }
 
   // ---------- Texte ----------
+  const GETRAENK_TEXT = 'Glühwein oder Schnaitl Bier';
   function ergebnisText(erg) {
-    if (erg === T.NIETE) return 'Niete';
-    if (erg === T.GLUEHWEIN) return 'Glühwein';
-    if (erg === T.BIER) return 'Schnaitl';
-    const p = preisVon(erg);
-    return 'Topf: ' + (p ? p.name : erg);
+    if (erg === T.GETRAENK) return 'Getränk';
+    if (erg === T.TOPF) return 'Preistopf';
+    return 'Altes Los';   // aus einem Testlauf vor der Umstellung auf zwei Los-Arten
   }
   const uhrzeit = (t) => new Date(t).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
 
@@ -193,7 +192,7 @@
     nachladen();
     let los;
     try {
-      los = T.verkaufen(stand, config, PREISE, rand01, Date.now(), sync ? sync.geraet : 1);
+      los = T.verkaufen(stand, config, rand01, Date.now(), sync ? sync.geraet : 1);
     } catch (e) {
       frage(e.message, 'OK');
       return;
@@ -227,24 +226,21 @@
     const los = offenesLos;
     const feld = $('dErgebnis');
     if (!los || feld.classList.contains('offen')) return;
-    feld.className = 'verdeckt offen' + (los.erg === T.NIETE ? '' : ' gewinn');
-    // Dieselben Farben wie am Handy: Glühwein rot, Schnaitl grün, Lostopf nachtblau, Niete hell.
-    feld.dataset.art = los.erg === T.NIETE ? 'niete' : los.erg === T.GLUEHWEIN ? 'gluehwein' : los.erg === T.BIER ? 'bier' : 'topf';
-    const p = preisVon(los.erg);
-    if (los.erg === T.NIETE) {
-      feld.replaceChildren(el('span', 'block', 'Niete'), el('small', '', 'Leider nichts gewonnen.'));
-    } else if (los.erg === T.GLUEHWEIN) {
-      feld.replaceChildren(el('span', 'block', 'Glühwein'),
-        el('small', '', los.aus ? 'Schon ausgegeben um ' + uhrzeit(los.aus) + '.' : 'Jetzt einen Glühwein ausschenken.'));
-    } else if (los.erg === T.BIER) {
-      feld.replaceChildren(el('span', 'block', 'Schnaitl'),
-        el('small', '', los.aus ? 'Schon ausgegeben um ' + uhrzeit(los.aus) + '.' : 'Jetzt ein Schnaitl (0,3 l) ausgeben.'));
+    const bekannt = los.erg === T.GETRAENK || los.erg === T.TOPF;
+    feld.className = 'verdeckt offen' + (bekannt ? ' gewinn' : '');
+    // Dieselben Farben wie am Handy: Getränk rot, Preistopf nachtblau.
+    feld.dataset.art = los.erg === T.GETRAENK ? 'getraenk' : los.erg === T.TOPF ? 'topf' : 'alt';
+    if (los.erg === T.GETRAENK) {
+      feld.replaceChildren(el('span', 'block', 'Ein Getränk'),
+        el('small', '', los.aus ? 'Schon ausgegeben um ' + uhrzeit(los.aus) + '.' : GETRAENK_TEXT + ' – jetzt ausgeben.'));
+    } else if (los.erg === T.TOPF) {
+      feld.replaceChildren(el('small', '', 'Dieses Los liegt im'), el('span', 'block', 'Preistopf'), el('small', '', 'Losnummer und Prüfcode mitgeben.'));
     } else {
-      feld.replaceChildren(el('small', '', 'Im Lostopf für'), el('span', 'block', p.name), el('small', '', 'Losnummer und Prüfcode mitgeben.'));
+      feld.replaceChildren(el('span', 'block', 'Altes Los'), el('small', '', 'Aus einem Testlauf vor der Umstellung – gilt nicht mehr.'));
     }
     $('dCode').textContent = 'Prüfcode ' + los.pruef;
     // Nach dem Ausschenken vermerken – dann fällt auf, wenn dasselbe Los später noch einmal gezeigt wird.
-    $('dAus').hidden = !((los.erg === T.GLUEHWEIN || los.erg === T.BIER) && !los.aus && !los.storno);
+    $('dAus').hidden = !(los.erg === T.GETRAENK && !los.aus && !los.storno);
   });
 
   // Vermerkt die Ausgabe auf diesem Gerät und schickt sie an die gemeinsame Liste. Gibt das Los zurück.
@@ -286,19 +282,13 @@
   $('losDialog').addEventListener('close', () => { offenesLos = null; zeichnen(); $('verkaufen').focus(); });
 
   function zeichneVerkauf() {
-    const st = T.statistik(stand, PREISE, Date.now());
+    const st = T.statistik(stand, Date.now());
     $('preisText').textContent = config.preis ? zahl(config.preis) + ' € pro Los' : '';
     $('zHeute').textContent = zahl(st.heute);
     $('zGesamt').textContent = zahl(st.gesamt);
     $('zEinnahmen').textContent = zahl(st.einnahmen);
-    $('zGluehwein').textContent = zahl(st.gluehwein);
-    $('zBier').textContent = zahl(st.bier);
-
-    $('topfListe').replaceChildren(...PREISE.map((p) => {
-      const li = el('li');
-      li.append(el('span', '', p.name + (p.ziehungen > 1 ? ' (' + p.ziehungen + ' Ziehungen)' : '')), el('b', 'ziffern', zahl(st.toepfe[p.id])));
-      return li;
-    }));
+    $('zGetraenk').textContent = zahl(st.getraenk);
+    $('zTopf').textContent = zahl(st.topf);
 
     const letzte = stand.lose.slice(-6).reverse();
     const liste = $('letzte');
@@ -312,7 +302,7 @@
       const teile = [
         el('span', 'nr ziffern', 'Nr. ' + T.nrText(los.nr)),
         el('span', 'zeit ziffern', uhrzeit(los.t)),
-        el('span', 'erg' + ((los.erg === T.GLUEHWEIN || los.erg === T.BIER) && !los.storno ? ' marke-g' : ''), ergebnisText(los.erg) + (los.storno ? ' (storniert)' : los.aus ? ' · ausgegeben' : ''))
+        el('span', 'erg' + (los.erg === T.GETRAENK && !los.storno ? ' marke-g' : ''), ergebnisText(los.erg) + (los.storno ? ' (storniert)' : los.aus ? ' · ausgegeben' : ''))
       ];
       if (los.storno) {
         li.append(...teile);
@@ -571,15 +561,21 @@
 
   function zeichneZiehung() {
     zeichneGeraete();
+    // Ein Topf für alle Preise: Die Zahl der Lose darin gilt für jeden Preis.
+    const rest = T.imTopf(stand).length;
+    const offen = PREISE.reduce((n, p) => n + Math.max(0, p.ziehungen - T.gueltigGezogene(stand, p.id).length), 0);
+    $('topfStand').textContent = (rest ? zahl(rest) + (rest === 1 ? ' Los liegt' : ' Lose liegen') + ' im Preistopf. ' : 'Im Preistopf liegt kein Los. ')
+      + (!offen ? 'Alle Preise sind gezogen.'
+        : rest ? 'Noch ' + offen + (offen === 1 ? ' Preis' : ' Preise') + ' zu ziehen.'
+          : (offen === 1 ? 'Ein Preis ist' : offen + ' Preise sind') + ' noch nicht gezogen.');
     $('toepfe').replaceChildren(...PREISE.map((p) => {
       const karte = el('article', 'topf');
       const gezogen = T.gezogene(stand, p.id);
       // Ein gezogenes Los kann storniert sein, wenn ein Gerät storniert hat, bevor es von der Ziehung wusste. Es zählt dann nicht.
       const storniert = T.stornoGezogen(stand, p.id);
       const gueltig = gezogen.length - storniert.length;
-      const rest = T.imTopf(stand, p.id).length;
       karte.append(el('h3', '', p.name));
-      karte.append(el('div', 'matt', zahl(rest) + (rest === 1 ? ' Los' : ' Lose') + ' im Topf · ' + gueltig + ' von ' + p.ziehungen + ' gezogen'));
+      karte.append(el('div', 'matt', gueltig + ' von ' + p.ziehungen + ' gezogen'));
       if (storniert.length) {
         karte.append(el('div', 'ergebnis-zeile schlecht', (storniert.length === 1 ? 'Ein gezogenes Los wurde' : storniert.length + ' gezogene Lose wurden')
           + ' storniert und ' + (storniert.length === 1 ? 'zählt' : 'zählen') + ' nicht als Gewinn.'
@@ -602,7 +598,7 @@
             if (!await frage(text, 'Neu ziehen')) return;
             if (!await vorZiehung()) return;
             nachladen();
-            const imTopf = T.imTopf(stand, p.id).length;
+            const imTopf = T.imTopf(stand).length;
             const neueNr = T.neuZiehen(stand, p, nr, rand01);
             nachZiehung();
             if (neueNr !== null) ziehShow(p, neueNr, imTopf, T.gezogene(stand, p.id).length);
@@ -627,7 +623,7 @@
           if (!await frage('Jetzt für „' + p.name + '“ ziehen?', 'Ziehen')) return;
           if (!await vorZiehung()) return;
           nachladen();
-          const imTopf = T.imTopf(stand, p.id).length;
+          const imTopf = T.imTopf(stand).length;
           const gezogeneNr = T.ziehen(stand, p, rand01);
           nachZiehung();
           if (gezogeneNr !== null) ziehShow(p, gezogeneNr, imTopf, T.gezogene(stand, p.id).length);
@@ -641,7 +637,7 @@
 
   $('abholfrist').addEventListener('change', (e) => {
     nachladen();
-    config = T.configPruefen({ ...config, abholfrist: e.target.value }, PREISE);
+    config = T.configPruefen({ ...config, abholfrist: e.target.value });
     configGeaendert();
   });
   $('gewinnerLaden').addEventListener('click', () => {
@@ -667,13 +663,13 @@
     if (r.status === 'unbekannt') text = 'Diese Losnummer wurde hier nicht verkauft.';
     else if (r.status === 'falscherCode') text = 'Der Prüfcode passt nicht zu dieser Losnummer.';
     else if (r.status === 'storno') text = 'Dieses Los wurde storniert.';
-    else if (r.los.erg === T.NIETE) text = 'Gültiges Los, aber eine Niete.';
-    else if (r.gewonnen || r.los.erg === T.GLUEHWEIN || r.los.erg === T.BIER) {
-      const was = r.gewonnen ? 'Gewinn: ' + preisVon(r.los.erg).name : r.los.erg === T.GLUEHWEIN ? 'ein Glühwein' : 'ein Schnaitl';
+    else if (r.gewinn || r.los.erg === T.GETRAENK) {
+      const p = preisVon(r.gewinn);
+      const was = r.gewinn ? 'Gewinn: ' + (p ? p.name : r.gewinn) : 'ein Getränk – ' + GETRAENK_TEXT;
       if (r.los.aus) text = 'Achtung: Für dieses Los wurde schon ausgegeben (' + was + '), am ' + wann(r.los.aus) + ' Uhr.';
       else { text = 'Gültig – ' + was + '. Noch nicht ausgegeben.'; gut = true; geprueft = r.los.nr; }
-    } else if (preisVon(r.los.erg)) text = 'Gültiges Los im Topf „' + preisVon(r.los.erg).name + '“, wurde aber nicht gezogen.';
-    else text = 'Gültiges Los, aber ohne Gewinn.';
+    } else if (r.los.erg === T.TOPF) text = 'Gültiges Los im Preistopf. Es wurde nicht gezogen.';
+    else text = 'Los aus einem Testlauf vor der Umstellung – gilt nicht mehr.';
     aus.textContent = text;
     aus.className = 'ergebnis-zeile ' + (gut ? 'gut' : 'schlecht');
     aus.hidden = false;
@@ -696,7 +692,7 @@
   }));
 
   // ---------- Einstellungen ----------
-  // Preis, Quoten, Gewichte und Abholfrist gelten mit gemeinsamer Liste für alle Geräte.
+  // Preis, Quote und Abholfrist gelten mit gemeinsamer Liste für alle Geräte.
   function configGeaendert() {
     if (sync) T.abgleichVormerken(sync, { config: true });
     configSpeichern();
@@ -705,18 +701,13 @@
   }
 
   function configAusFormular() {
-    const gewichte = {};
-    PREISE.forEach((p) => { gewichte[p.id] = $('gew-' + p.id).value; });
     nachladen();
     config = T.configPruefen({
       ...config,
       preis: $('fPreis').value,
-      quoteGluehwein: $('fGluehwein').value,
-      quoteBier: $('fBier').value,
-      quoteTopf: $('fTopf').value,
-      losSeite: $('fLosSeite').value,
-      gewichte
-    }, PREISE);
+      quoteGetraenk: $('fGetraenk').value,
+      losSeite: $('fLosSeite').value
+    });
     configGeaendert();
     zeichnen();
   }
@@ -724,39 +715,11 @@
   function zeichneEinstellungen() {
     const setze = (id, wert) => { if (document.activeElement !== $(id)) $(id).value = wert; };
     setze('fPreis', config.preis);
-    setze('fGluehwein', config.quoteGluehwein);
-    setze('fBier', config.quoteBier);
-    setze('fTopf', config.quoteTopf);
+    setze('fGetraenk', config.quoteGetraenk);
     setze('fLosSeite', config.losSeite);
-    const niete = 100 - config.quoteGluehwein - config.quoteBier - config.quoteTopf;
-    $('nietenText').textContent = 'Der Rest sind Nieten: ' + zahl(niete) + ' %. Die neuen Quoten gelten ab dem nächsten Los.';
-
-    const summe = PREISE.reduce((s, p) => s + config.gewichte[p.id], 0);
-    const tbody = $('gewichte');
-    if (!tbody.children.length) {
-      PREISE.forEach((p) => {
-        const tr = el('tr');
-        const eingabe = el('input');
-        eingabe.id = 'gew-' + p.id;
-        eingabe.type = 'number';
-        eingabe.min = '0';
-        eingabe.step = '1';
-        eingabe.inputMode = 'numeric';
-        eingabe.setAttribute('aria-label', 'Gewicht ' + p.name);
-        eingabe.addEventListener('change', configAusFormular);
-        const tdE = el('td', 'r');
-        tdE.append(eingabe);
-        const chance = el('td', 'r ziffern');
-        chance.id = 'chance-' + p.id;
-        tr.append(el('td', '', p.name), tdE, chance);
-        tbody.append(tr);
-      });
-    }
-    PREISE.forEach((p) => {
-      setze('gew-' + p.id, config.gewichte[p.id]);
-      const c = summe ? config.quoteTopf * config.gewichte[p.id] / summe : 0;
-      $('chance-' + p.id).textContent = c.toLocaleString('de-AT', { maximumFractionDigits: 1 }) + ' %';
-    });
+    $('quoteText').textContent = 'Von 100 Losen sind ' + zahl(config.quoteGetraenk) + ' ein Getränk (' + GETRAENK_TEXT + ') und '
+      + zahl(100 - config.quoteGetraenk) + ' gehen in den Preistopf. Die neue Quote gilt ab dem nächsten Los.';
+    $('preisListe').replaceChildren(...T.preisListe(PREISE).map((name) => el('li', '', name)));
 
     $('losSeiteText').textContent = nurDiesesGeraet()
       ? 'Die App läuft gerade unter „localhost“. Handys erreichen diese Adresse nicht – zum Testen die App über die Netzwerkadresse dieses Rechners öffnen oder hier eine Adresse eintragen.'
@@ -769,7 +732,7 @@
       + (offen ? zahl(offen) + (offen === 1 ? ' Los ist' : ' Lose sind') + ' seither dazugekommen.' : 'Alles gesichert.');
   }
 
-  ['fPreis', 'fGluehwein', 'fBier', 'fTopf', 'fLosSeite'].forEach((id) => $(id).addEventListener('change', configAusFormular));
+  ['fPreis', 'fGetraenk', 'fLosSeite'].forEach((id) => $(id).addEventListener('change', configAusFormular));
 
   // ---------- Sicherung ----------
   const ungesichert = () => stand.lose.filter((l) => l.t > stand.letzteSicherung).length;
@@ -800,7 +763,7 @@
     }
     let neu;
     try {
-      neu = T.sicherungLesen(JSON.parse(await datei.text()), PREISE);
+      neu = T.sicherungLesen(JSON.parse(await datei.text()));
     } catch (err) {
       await frage(err instanceof SyntaxError ? 'Die Datei lässt sich nicht lesen.' : err.message, 'OK');
       return;
@@ -906,7 +869,7 @@
         // Während der Anfrage kann hier verkauft oder in einem zweiten Fenster gespeichert worden sein.
         nachladen();
         if (!sync || sync.geraet !== anfrage.geraet || (sync.raum || sync.code) !== (anfrage.raum || anfrage.code)) return false;
-        const r = T.abgleichAntwort(sync, stand, config, anfrage, antwort, PREISE, Date.now());
+        const r = T.abgleichAntwort(sync, stand, config, anfrage, antwort, Date.now());
         config = r.config;
         configSpeichern();
         standUndSyncSpeichern();

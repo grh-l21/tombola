@@ -225,8 +225,7 @@ dialog::backdrop { background: rgba(16, 24, 74, 0.93); }
 .verdeckt.offen .block { color: var(--f-rot); }
 .verdeckt.offen.gewinn { box-shadow: none; color: var(--f-creme-hell); background: linear-gradient(180deg, #131B50, #2B3076); }
 .verdeckt.offen.gewinn .block { color: var(--f-gold-hell); }
-.verdeckt.offen[data-art="gluehwein"] { background: linear-gradient(180deg, #C4222A, var(--f-rot-tief)); }
-.verdeckt.offen[data-art="bier"] { background: linear-gradient(180deg, #22843F, var(--f-tanne-tief)); }
+.verdeckt.offen[data-art="getraenk"] { background: linear-gradient(100deg, #C4222A, var(--f-rot-tief) 48%, var(--f-tanne-tief) 52%, #22843F); }
 .seller-seite .zeile { margin: 0; }
 .seller-seite .zeile .knopf.rot { flex: 1; }
 
@@ -298,7 +297,7 @@ body.los::after {
 .rubbelfeld canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; touch-action: none; cursor: grab; transition: opacity 0.45s, transform 0.45s; }
 .rubbelfeld canvas.weg { opacity: 0; transform: scale(1.18); pointer-events: none; }
 
-/* Das Ergebnis unter der Rubbelschicht. data-art: imTopf · gewonnen · gluehwein · bier · niete · nichtGezogen */
+/* Das Ergebnis unter der Rubbelschicht. data-art: getraenk · imTopf · gewonnen · nichtGezogen */
 .ergebnis {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 16px; text-align: center;
@@ -312,14 +311,21 @@ body.los::after {
 .ergebnis .gross.lang { font-size: clamp(19px, 6.2vw, 27px); }
 .ergebnis .klein { font-weight: 600; font-size: 0.95em; }
 
-.ergebnis[data-art="gluehwein"] { background: linear-gradient(180deg, #C4222A, var(--f-rot-tief)); }
-.ergebnis[data-art="gluehwein"] .motiv { width: 44%; height: 44%; }
-
-.ergebnis[data-art="bier"] { flex-direction: row; gap: 14px; padding: 16px 18px; text-align: left; background: linear-gradient(180deg, #22843F, var(--f-tanne-tief)); }
-.ergebnis[data-art="bier"] .motiv { flex: none; width: 34%; height: 90%; padding: 12px 8px 8px; border-radius: 999px 999px 16px 16px; background: #F8F3E7; }
-.ergebnis[data-art="bier"] .motiv img { display: block; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
-.ergebnis[data-art="bier"] .worte { align-items: flex-start; min-width: 0; }
-.ergebnis[data-art="bier"] .gross { font-size: clamp(22px, 7.4vw, 32px); }
+/* Getränke-Los: ein Bild mit beiden Getränken – links das Häferl Glühwein auf Rot, rechts die Flasche Schnaitl auf Grün. */
+.ergebnis[data-art="getraenk"] { gap: 0; padding: 0; justify-content: flex-start; background: #131B50; }
+.ergebnis[data-art="getraenk"] .motiv { position: relative; flex: 1 1 0; min-height: 0; width: 100%; height: auto; display: flex; }
+.ergebnis[data-art="getraenk"] .halb { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; }
+.ergebnis[data-art="getraenk"] .tasse { padding: 12px 18px 12px 12px; background: linear-gradient(180deg, #C4222A, var(--f-rot-tief)); }
+.ergebnis[data-art="getraenk"] .flasche { padding: 10px 10px 10px 16px; background: linear-gradient(180deg, #22843F, var(--f-tanne-tief)); }
+.ergebnis[data-art="getraenk"] .pille { display: block; height: 100%; aspect-ratio: 1 / 2.6; padding: 10px 7px 7px; border-radius: 999px 999px 14px 14px; background: #F8F3E7; transform-origin: 50% 85%; }
+.ergebnis[data-art="getraenk"] .pille img { display: block; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+.ergebnis[data-art="getraenk"] .oder {
+  position: absolute; left: 50%; top: 50%; z-index: 1; transform: translate(-50%, -50%);
+  display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%;
+  background: var(--f-gold-hell); color: var(--f-nacht); font-weight: 800; font-size: 13px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.ergebnis[data-art="getraenk"] .worte { position: relative; z-index: 1; width: 100%; gap: 3px; padding: 10px 12px 13px; background: linear-gradient(180deg, #131B50, #2B3076); }
+.ergebnis[data-art="getraenk"] .gross { font-size: clamp(26px, 8.6vw, 38px); }
 
 .ergebnis[data-stufe="still"] { background: #E6E0D1; color: var(--f-nacht); box-shadow: inset 0 0 0 3px rgba(29, 42, 92, 0.14); border-radius: 16px; }
 .ergebnis[data-stufe="still"] .motiv { width: 62%; height: 36%; }
@@ -327,6 +333,11 @@ body.los::after {
 
 .antippen { display: block; margin: -4px auto 12px; min-height: 44px; padding: 0 14px; border: 0; background: none; text-decoration: underline; text-underline-offset: 3px; color: rgba(29, 42, 92, 0.75); cursor: pointer; }
 .details { padding: 0 22px 20px; display: flex; flex-direction: column; gap: 10px; }
+/* Los im Preistopf: was es zu gewinnen gibt */
+.details .im-topf { border-left: 6px solid var(--f-gold); border-radius: 10px; padding: 10px 14px; background: #FBF8F0; font-size: 0.95em; }
+.details .im-topf p { font-weight: 700; }
+.details .preise { margin: 4px 0 0; padding-left: 1.2em; }
+.details .preise li + li { margin-top: 2px; }
 .details .merken { border-left: 6px solid var(--f-gold); border-radius: 10px; padding: 10px 14px; background: #FBF8F0; font-size: 0.95em; }
 .details a:not(.knopf) { color: var(--f-rot); font-weight: 700; overflow-wrap: anywhere; }
 .klein-text { font-size: 0.86em; color: var(--f-matt); }
@@ -349,7 +360,7 @@ body.los::after {
 /* ---------------------------------------------- Auftritt nach dem Rubbeln */
 /* .offen     = Ergebnis ist aufgedeckt (auch beim späteren Wiederöffnen): ruhige Dauerbewegung.
    .auftritt  = gerade eben aufgerubbelt: einmaliger Auftritt. Ausgelöst in los.js.
-   data-stufe = still (Niete) · klein (Glühwein) · gross (im Lostopf) · haupt (gezogen). */
+   data-stufe = still (nicht gezogen) · klein (Getränk) · gross (im Preistopf) · haupt (gezogen). */
 
 .ergebnis > * { position: relative; z-index: 1; }
 .ergebnis .gross, .ergebnis .motiv { will-change: transform; }
@@ -392,14 +403,14 @@ body.los::after {
 .ergebnis.offen[data-stufe="haupt"]:not(.auftritt) .gross { animation: pulsieren 1.6s ease-in-out infinite; }
 .karte.wumms { animation: beben 0.55s 0.2s; }
 
-/* Glühwein und Schnaitl: Häferl oder Flasche prosten zu; Dampf steigt, Bläschen perlen */
+/* Getränk: Häferl und Flasche prosten einander zu; Dampf steigt, Bläschen perlen */
 .dampf { transform-box: fill-box; transform-origin: 50% 100%; }
 .dampf:nth-child(2) { animation-delay: -0.9s; }
 .dampf:nth-child(3) { animation-delay: -1.8s; }
 .ergebnis.offen .dampf { animation-name: dampfen; animation-duration: 2.7s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
 .ergebnis[data-stufe="klein"] .motiv { transform-origin: 50% 85%; }
 .ergebnis .blasen { position: absolute; inset: 0; z-index: 0; display: none; }
-.ergebnis.offen[data-art="bier"] .blasen { display: block; }
+.ergebnis.offen[data-art="getraenk"] .blasen { display: block; }
 .blasen i { position: absolute; bottom: -14px; width: 10px; height: 10px; border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 50%; opacity: 0; animation: perlen 3.4s ease-in infinite; }
 .blasen i:nth-child(1) { left: 50%; animation-delay: 0s; }
 .blasen i:nth-child(2) { left: 62%; animation-delay: -1.2s; width: 7px; height: 7px; }
@@ -407,7 +418,9 @@ body.los::after {
 .blasen i:nth-child(4) { left: 86%; animation-delay: -0.6s; width: 6px; height: 6px; }
 .blasen i:nth-child(5) { left: 93%; animation-delay: -1.8s; }
 .blasen i:nth-child(6) { left: 56%; animation-delay: -2.9s; width: 6px; height: 6px; }
-.ergebnis.auftritt[data-stufe="klein"] .motiv { animation: prosten 1.3s ease-in-out; }
+.ergebnis[data-art="getraenk"] .tasse .bild { transform-origin: 50% 85%; }
+.ergebnis.auftritt[data-art="getraenk"] .tasse .bild { animation: prosten 1.3s ease-in-out; }
+.ergebnis.auftritt[data-art="getraenk"] .pille { animation: prosten 1.3s ease-in-out reverse; }
 .ergebnis.auftritt[data-stufe="klein"] .gross { animation: stempeln-leicht 0.6s ease-out 0.2s; }
 
 /* Niete: der Zweig wiegt sich, das Wort setzt sich mit einem kleinen Ruck */

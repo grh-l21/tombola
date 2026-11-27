@@ -1,12 +1,13 @@
 // Stammdaten der Tombola. Stand-App und Los-Seite lesen beide diese Datei.
-// Preise hier ändern – die "id" eines Preises steht im Los-Link und darf sich
-// nach dem ersten verkauften Los nicht mehr ändern.
+// Preise hier ändern. Alle Preise liegen in einem gemeinsamen Preistopf und werden bei der Ziehung
+// nacheinander gezogen; "ziehungen" sagt, wie oft ein Preis vergeben wird.
+// Die "id" eines Preises steht in der Ziehung und darf sich nach der ersten Ziehung nicht mehr ändern.
 (function (root) {
   const DATEN = {
     titel: 'Glühwein-Tombola',
     // Steht auf der Los-Seite unter dem Titel.
     verein: 'der Vöcklabrucker Tafelrunde',
-    // Steht auf jedem Los, das in einem Topf liegt.
+    // Steht auf jedem Los, das im Preistopf liegt.
     ziehung: 'Die Ziehung ist am Samstag, 19. Dezember, um 20 Uhr am Stand.',
     // Wer bei der Ziehung nicht dabei ist, kann dem Verein sein Los schicken und wird bei einem Gewinn verständigt.
     // Hier die Adresse des Vereins eintragen – eine oder beide. Bleibt beides leer, gibt es den Knopf am Los nicht.
@@ -20,11 +21,11 @@
     // Leer = jedes Gerät verkauft nur für sich.
     ablage: 'https://tombola-ablage.tombola-ablage.workers.dev',
     preise: [
-      { id: 'ski',    name: 'Fischer Ski',                 topf: 'Fischer Ski',                 ziehungen: 1 },
-      { id: 'reifen', name: 'Reifen von RWA',              topf: 'Reifen von RWA',              ziehungen: 1 },
-      { id: 'gastro', name: 'Gastrogutschein',             topf: 'einen von 3 Gastrogutscheinen', ziehungen: 3 },
-      { id: 'vip',    name: '2 VIP-Karten Blau-Weiß Linz', topf: '2 VIP-Karten Blau-Weiß Linz', ziehungen: 1 },
-      { id: 'stella', name: '2 Karten für Pavlo Stella',   topf: '2 Karten für Pavlo Stella',   ziehungen: 1 }
+      { id: 'ski',    name: 'Fischer Ski',                 ziehungen: 1 },
+      { id: 'reifen', name: 'Reifen von RWA',              ziehungen: 1 },
+      { id: 'gastro', name: 'Gastrogutschein',             ziehungen: 3 },
+      { id: 'vip',    name: '2 VIP-Karten Blau-Weiß Linz', ziehungen: 1 },
+      { id: 'stella', name: '2 Karten für Pavlo Stella',   ziehungen: 1 }
     ]
   };
   // Die Tombola ist umgezogen. Wer noch die frühere Adresse öffnet (github.io), wird zur neuen geschickt –

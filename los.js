@@ -23,14 +23,19 @@
 
   $('titel').textContent = DATEN.titel;
   $('verein').textContent = DATEN.verein || '';
-  const los = T.linkLesen(location.hash, PREISE);
+  const los = T.linkLesen(location.hash);
   if (!los) {
     $('fehler').hidden = false;
     return;
   }
 
   const nr = 'Nr. ' + T.nrText(los.nr);
-  const preis = PREISE.find((p) => p.id === los.erg);
+  // Der Preis, den dieses Los bei der Ziehung gewonnen hat. Steht ein Preis nicht mehr in daten.js, bleibt es bei „Ein Preis“.
+  const gewinnName = (datei) => {
+    const p = PREISE.find((e) => e.id === T.losGewinn(los, datei));
+    return p ? p.name : 'Ein Preis';
+  };
+  const GETRAENK = 'Glühwein oder Schnaitl Bier';
   const merkKey = 'tombola.los.' + los.nr + '-' + los.pruef;
   const gemerkt = (() => { try { return localStorage.getItem(merkKey); } catch (e) { return null; } })();
   const merken = (status) => { try { localStorage.setItem(merkKey, status); } catch (e) { /* privater Modus */ } };
@@ -42,63 +47,50 @@
   $('karte').hidden = false;
 
   // ---------- Inhalte je nach Ergebnis ----------
+  // Es gibt zwei Arten von Losen: ein Getränk (Glühwein oder Schnaitl Bier) oder ein Los im Preistopf.
   // "stufe" legt fest, wie groß nach dem Rubbeln gefeiert wird:
-  // still (Niete), klein (Glühwein, Schnaitl), gross (im Lostopf), haupt (bei der Ziehung gezogen).
-  // "motiv" ist eine Zeichnung aus motive/*.svg, "bild" ein Foto.
+  // still (nach der Ziehung nicht gezogen), klein (Getränk), gross (im Preistopf), haupt (bei der Ziehung gezogen).
+  // "motiv" ist eine Zeichnung aus motive/*.svg; "doppel" zeigt Häferl und Flasche nebeneinander.
   function inhalt(status, datei) {
     const frist = datei && datei.abholfrist ? ' Abholung: ' + datei.abholfrist + '.' : '';
-    if (status === 'niete') {
+    const beleg = 'Zeig dort dieses Los. Wir prüfen die Losnummer ' + T.nrText(los.nr) + ' und den Prüfcode ' + los.pruef + '.';
+    if (status === 'getraenk') {
       return {
-        motiv: 'tanne', stufe: 'still', dach: 'Leider', gross: 'Niete',
-        text: ['Diesmal war nichts dabei. Danke fürs Mitmachen – mit deinem Los unterstützt du den Verein.']
-      };
-    }
-    if (status === 'gluehwein') {
-      return {
-        motiv: 'tasse', stufe: 'klein', gewinn: true, dach: 'Gewonnen', gross: 'Ein Glühwein',
-        text: ['Der geht aufs Haus. Hol ihn dir gleich am Stand.',
-          'Zeig dort dieses Los. Wir prüfen die Losnummer ' + T.nrText(los.nr) + ' und den Prüfcode ' + los.pruef + '.']
-      };
-    }
-    if (status === 'bier') {
-      return {
-        bild: 'schnaitl.jpg', bildText: 'Flasche Schnaitl Pils', stufe: 'klein', gewinn: true,
-        dach: 'Gewonnen', gross: 'Ein Schnaitl', klein: 'Pils · 0,3 l',
-        text: ['Das geht aufs Haus. Hol dir dein Schnaitl gleich am Stand.',
-          'Zeig dort dieses Los. Wir prüfen die Losnummer ' + T.nrText(los.nr) + ' und den Prüfcode ' + los.pruef + '.']
+        doppel: true, stufe: 'klein', gewinn: true, dach: 'Gewonnen', gross: 'Ein Getränk', klein: GETRAENK,
+        text: ['Du hast die Wahl: ein Glühwein oder ein Schnaitl Bier. Das geht aufs Haus – hol dir dein Getränk gleich am Stand.', beleg]
       };
     }
     if (status === 'gewonnen') {
       return {
-        motiv: 'stern-gold', stufe: 'haupt', gewinn: true, dach: 'Dein Los wurde gezogen', gross: preis.name,
-        text: ['Herzlichen Glückwunsch! Hol deinen Gewinn am Stand ab.' + frist,
-          'Zeig dort dieses Los. Wir prüfen die Losnummer ' + T.nrText(los.nr) + ' und den Prüfcode ' + los.pruef + '.']
+        motiv: 'stern-gold', stufe: 'haupt', gewinn: true, dach: 'Dein Los wurde gezogen', gross: gewinnName(datei),
+        text: ['Herzlichen Glückwunsch! Hol deinen Gewinn am Stand ab.' + frist, beleg]
       };
     }
     if (status === 'nichtGezogen') {
-      const gezogen = datei.gewinner.filter((g) => g.topf === los.erg).map((g) => 'Nr. ' + T.nrText(g.nr));
+      const gezogen = datei.gewinner.map((g) => 'Nr. ' + T.nrText(g.nr));
       return {
-        motiv: 'tanne', stufe: 'still', dach: 'Im Topf für ' + preis.topf, gross: 'Nicht gezogen',
+        motiv: 'tanne', stufe: 'still', dach: 'Im Preistopf', gross: 'Nicht gezogen',
         text: ['Die Ziehung ist vorbei, dein Los war leider nicht dabei.'
-          + (gezogen.length ? ' Gezogen wurde: ' + gezogen.join(', ') + '.' : ''),
+          + (gezogen.length ? ' Gezogen wurden: ' + gezogen.join(', ') + '.' : ''),
           'Danke fürs Mitmachen!']
       };
     }
     return {
-      motiv: 'stern-gold', stufe: 'gross', gewinn: true, dach: 'Du bist im Lostopf für', gross: preis.topf,
-      text: ['Dein Los ' + nr + ' nimmt an der Ziehung teil. ' + DATEN.ziehung]
+      motiv: 'stern-gold', stufe: 'gross', gewinn: true, dach: 'Dein Los liegt im', gross: 'Preistopf',
+      text: ['Dein Los ' + nr + ' nimmt an der Ziehung teil. ' + DATEN.ziehung],
+      liste: { titel: 'Diese Preise werden gezogen:', punkte: T.preisListe(PREISE) }
     };
   }
 
   // Wer bei der Ziehung nicht dabei ist, schickt dem Verein sein Los per E-Mail oder WhatsApp.
   // Den Knopf gibt es nur, wenn in daten.js eine Adresse des Vereins eingetragen ist.
-  function kontaktKasten(status) {
+  function kontaktKasten(status, datei) {
     if (status !== 'imTopf' && status !== 'gewonnen') return null;
     const losText = 'Los ' + nr + ', Prüfcode ' + los.pruef;
     const gewonnen = status === 'gewonnen';
     const nachricht = gewonnen
-      ? 'Mein Los wurde bei der ' + DATEN.titel + ' gezogen: ' + preis.name + '.\n' + losText + '.\nWie komme ich zu meinem Gewinn?'
-      : losText + ', im Lostopf für ' + preis.name + ' (' + DATEN.titel + ').\nBitte verständigt mich, wenn mein Los gezogen wird.';
+      ? 'Mein Los wurde bei der ' + DATEN.titel + ' gezogen: ' + gewinnName(datei) + '.\n' + losText + '.\nWie komme ich zu meinem Gewinn?'
+      : losText + ', im Preistopf der ' + DATEN.titel + '.\nBitte verständigt mich, wenn mein Los gezogen wird.';
     const links = T.kontaktLinks(DATEN.kontakt, DATEN.titel + ': Los ' + nr, nachricht);
     if (!links.length) return null;
     const kasten = el('div', 'kontakt');
@@ -118,12 +110,24 @@
   }
 
   // ---------- Los als Bild speichern ----------
-  // Wer ein Los im Topf hat, kann es als Bild aufheben: mit Losnummer, Prüfcode, Preis
+  // Jedes Los lässt sich als Bild aufheben: mit Losnummer, Prüfcode, dem Gewinn
   // und einem QR-Code, der das Los wieder öffnet.
   // Am iPhone und iPad öffnet sich das Teilen-Fenster ("Bild sichern" für die Fotos, "In Dateien sichern"),
   // auf anderen Geräten lädt der Browser das Bild herunter.
   const bildName = 'Los-' + T.nrText(los.nr) + '-' + DATEN.titel.replace(/[^A-Za-z0-9ÄÖÜäöüß]+/g, '-') + '.png';
   const apfelGeraet = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Eine Zeichnung (SVG) fürs Bild. Mit fester Größe im Dateikopf klappt das in jedem Browser.
+  async function zeichnungLaden(src, breite, hoehe) {
+    try {
+      const r = await fetch(src);
+      if (!r.ok) return null;
+      const svg = (await r.text()).replace('<svg ', '<svg width="' + breite + '" height="' + hoehe + '" ');
+      return bildLaden('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+    } catch (e) {
+      return null;
+    }
+  }
 
   function bildLaden(src) {
     return new Promise((fertig) => {
@@ -147,7 +151,7 @@
 
   async function losBild(status, datei) {
     const B = 1080;
-    const H = 1500;
+    const H = status === 'getraenk' ? 1640 : 1500;   // das Getränke-Los ist höher: oben haben beide Getränke Platz
     const cv = document.createElement('canvas');
     cv.width = B;
     cv.height = H;
@@ -220,25 +224,85 @@
 
     // Wofür das Los gilt
     const gewonnen = status === 'gewonnen';
+    const mitte = (text, yy) => c.fillText(text, B / 2, yy);
     c.textAlign = 'center';
     let y = ky + 170 + 110;
-    c.fillStyle = '#B8191F';
-    c.font = block(34, 700);
-    c.fillText((gewonnen ? 'Dein Los wurde gezogen' : 'Im Lostopf für').toUpperCase(), B / 2, y);
-    const name = gewonnen ? preis.name : preis.topf;
-    gr = 88;
-    c.font = block(gr);
-    let zeilen = umbrechen(c, name, kb - 120);
-    while (zeilen.length > 2 && gr > 48) { gr -= 6; c.font = block(gr); zeilen = umbrechen(c, name, kb - 120); }
-    c.fillStyle = '#1D2A5C';
-    y += 30;
-    zeilen.forEach((z) => { y += gr * 1.12; c.fillText(z, B / 2, y); });
-    const frist = datei && datei.abholfrist ? ' Abholung: ' + datei.abholfrist + '.' : '';
-    const info = gewonnen ? 'Herzlichen Glückwunsch! Hol deinen Gewinn am Stand ab.' + frist : DATEN.ziehung;
-    c.font = block(34, 500);
-    c.fillStyle = '#3A456F';
-    y += 34;
-    umbrechen(c, info, kb - 140).slice(0, 3).forEach((z) => { y += 48; c.fillText(z, B / 2, y); });
+    if (status === 'getraenk') {
+      // Beide Getränke nebeneinander: links das Häferl auf Rot, rechts die Flasche auf Grün.
+      const [tasse, flasche] = await Promise.all([zeichnungLaden('motive/tasse.svg', 120, 124), bildLaden('motive/schnaitl.jpg')]);
+      const bx = kx + 60;
+      const by = ky + 170 + 56;
+      const bb = kb - 120;
+      const bh = 340;
+      c.save();
+      rund(bx, by, bb, bh, 28);
+      c.clip();
+      const rot = c.createLinearGradient(0, by, 0, by + bh);
+      rot.addColorStop(0, '#C4222A');
+      rot.addColorStop(1, '#8E1217');
+      c.fillStyle = rot;
+      c.fillRect(bx, by, bb / 2, bh);
+      const gruen = c.createLinearGradient(0, by, 0, by + bh);
+      gruen.addColorStop(0, '#22843F');
+      gruen.addColorStop(1, '#145228');
+      c.fillStyle = gruen;
+      c.fillRect(bx + bb / 2, by, bb / 2, bh);
+      c.restore();
+      if (tasse) {
+        const th = 230;
+        c.drawImage(tasse, bx + bb / 4 - th * 120 / 124 / 2, by + (bh - th) / 2, th * 120 / 124, th);
+      }
+      if (flasche) {
+        // Die Flasche steht auf einem hellen Schild, wie am Los selbst.
+        const fh = bh - 60;
+        const fb = fh * flasche.width / flasche.height;
+        const fx = bx + bb * 3 / 4;
+        c.fillStyle = '#F8F3E7';
+        rund(fx - fb / 2 - 26, by + 14, fb + 52, bh - 28, [70, 70, 22, 22]);
+        c.fill();
+        c.save();
+        c.globalCompositeOperation = 'multiply';
+        c.drawImage(flasche, fx - fb / 2, by + 34, fb, fh);
+        c.restore();
+      }
+      c.fillStyle = '#F6DC8C';
+      c.beginPath();
+      c.arc(bx + bb / 2, by + bh / 2, 46, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#1D2A5C';
+      c.font = block(28, 800);
+      mitte('oder', by + bh / 2 + 10);
+      y = by + bh + 72;
+      c.fillStyle = '#B8191F';
+      c.font = block(34, 700);
+      mitte('GEWONNEN', y);
+      c.fillStyle = '#1D2A5C';
+      c.font = block(84);
+      y += 92;
+      mitte('Ein Getränk', y);
+      c.fillStyle = '#3A456F';
+      c.font = block(36, 600);
+      y += 58;
+      mitte(GETRAENK + ' – am Stand abholen', y);
+    } else {
+      c.fillStyle = '#B8191F';
+      c.font = block(34, 700);
+      mitte((gewonnen ? 'Dein Los wurde gezogen' : 'Dein Los liegt im').toUpperCase(), y);
+      const name = gewonnen ? gewinnName(datei) : 'Preistopf';
+      gr = 88;
+      c.font = block(gr);
+      let zeilen = umbrechen(c, name, kb - 120);
+      while (zeilen.length > 2 && gr > 48) { gr -= 6; c.font = block(gr); zeilen = umbrechen(c, name, kb - 120); }
+      c.fillStyle = '#1D2A5C';
+      y += 30;
+      zeilen.forEach((z) => { y += gr * 1.12; mitte(z, y); });
+      const frist = datei && datei.abholfrist ? ' Abholung: ' + datei.abholfrist + '.' : '';
+      const info = gewonnen ? 'Herzlichen Glückwunsch! Hol deinen Gewinn am Stand ab.' + frist : DATEN.ziehung;
+      c.font = block(34, 500);
+      c.fillStyle = '#3A456F';
+      y += 34;
+      umbrechen(c, info, kb - 140).slice(0, 3).forEach((z) => { y += 48; mitte(z, y); });
+    }
 
     // Unten: QR-Code, der das Los wieder öffnet, daneben Losnummer und Prüfcode
     const qg = 320;
@@ -279,11 +343,11 @@
   }
 
   function speicherKasten(status, datei) {
-    if (status !== 'imTopf' && status !== 'gewonnen') return null;
+    if (status !== 'getraenk' && status !== 'imTopf' && status !== 'gewonnen') return null;
     const kasten = el('div', 'kontakt');
     kasten.append(
       el('h2', '', 'Heb dein Los gut auf'),
-      el('p', '', 'Für einen Gewinn brauchst du Losnummer und Prüfcode. Speichere dein Los als Bild am Handy.')
+      el('p', '', (status === 'getraenk' ? 'Für dein Getränk' : 'Für einen Gewinn') + ' brauchst du Losnummer und Prüfcode. Speichere dein Los als Bild am Handy.')
     );
     const knopf = el('button', 'knopf rot', 'Los speichern');
     knopf.type = 'button';
@@ -341,19 +405,37 @@
     $('klein').hidden = !i.klein;
     const details = $('details');
     details.replaceChildren(...i.text.map((t) => el('p', '', t)));
-    if (i.merken) details.append(el('p', 'merken', i.merken));
+    if (i.liste) {
+      const ul = el('ul', 'preise');
+      ul.append(...i.liste.punkte.map((punkt) => el('li', '', punkt)));
+      const kasten = el('div', 'im-topf');
+      kasten.append(el('p', '', i.liste.titel), ul);
+      details.append(kasten);
+    }
     if (ohneNetz && status === 'imTopf') {
       details.append(el('p', 'klein-text', 'Gerade keine Verbindung: Ob dein Los schon gezogen wurde, siehst du hier erst wieder mit Internet.'));
     }
     const speichern = speicherKasten(status, datei);
     if (speichern) details.append(speichern);
-    const kasten = kontaktKasten(status);
+    const kasten = kontaktKasten(status, datei);
     if (kasten) details.append(kasten);
-    if (i.bild) {
+    if (i.doppel) {
+      // Ein Bild mit beiden Getränken: links das Häferl Glühwein, rechts die Flasche Schnaitl.
+      const tasse = el('div', 'halb tasse');
+      const flasche = el('div', 'halb flasche');
+      const pille = el('span', 'pille');
       const foto = el('img');
-      foto.src = 'motive/' + i.bild;
-      foto.alt = i.bildText || '';
-      $('motiv').replaceChildren(foto);
+      foto.src = 'motive/schnaitl.jpg';
+      foto.alt = '';
+      pille.append(foto);
+      flasche.append(pille);
+      $('motiv').setAttribute('role', 'img');
+      $('motiv').setAttribute('aria-label', 'Ein Häferl Glühwein und eine Flasche Schnaitl Bier');
+      $('motiv').replaceChildren(tasse, el('span', 'oder', 'oder'), flasche);
+      fetch('motive/tasse.svg')
+        .then((r) => (r.ok ? r.text() : ''))
+        .then((svg) => { tasse.innerHTML = svg; })
+        .catch(() => {});
     } else {
       fetch('motive/' + i.motiv + '.svg')
         .then((r) => (r.ok ? r.text() : ''))

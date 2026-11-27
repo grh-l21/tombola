@@ -1,19 +1,16 @@
 // Los-Logik ohne Bildschirm: auslosen, Link bauen und lesen, ziehen, sichern.
 // Läuft im Browser (window.Tombola) und in den Tests (require).
 (function (root) {
-  const NIETE = 'N';
-  const GLUEHWEIN = 'G';
-  const BIER = 'B';          // ein Schnaitl, 0,3 l
+  // Es gibt zwei Arten von Losen:
+  const GETRAENK = 'G';      // ein Getränk am Stand: Glühwein oder Schnaitl Bier, der Kunde wählt
+  const TOPF = 'T';          // das Los liegt im Preistopf, aus dem bei der Ziehung alle Preise gezogen werden
   // Ohne I, O, 0 und 1 – die verwechselt man beim Vorlesen.
   const CODE_ZEICHEN = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const CODE_LAENGE = 4;
 
   const STANDARD_CONFIG = {
     preis: 10,
-    quoteGluehwein: 30,   // Prozent aller Lose
-    quoteBier: 10,        // Prozent aller Lose
-    quoteTopf: 40,        // Prozent aller Lose; der Rest sind Nieten
-    gewichte: {},         // Topf-id -> Gewicht, fehlend = 1
+    quoteGetraenk: 60,    // Prozent aller Lose; der Rest (40) geht in den Preistopf
     losSeite: '',         // Adresse der Los-Seite; leer = neben der Stand-App
     abholfrist: ''
   };
@@ -24,22 +21,13 @@
     return Math.min(max, Math.max(min, n));
   };
 
-  function configPruefen(c, preise) {
+  // Felder aus früheren Fassungen (Nieten, eigene Quoten für Glühwein und Schnaitl, Gewichte je Topf) fallen hier weg.
+  function configPruefen(c) {
     const d = STANDARD_CONFIG;
     c = c && typeof c === 'object' ? c : {};
-    const g = zahl(c.quoteGluehwein, d.quoteGluehwein, 0, 100);
-    const b = zahl(c.quoteBier, d.quoteBier, 0, 100 - g);
-    const t = zahl(c.quoteTopf, d.quoteTopf, 0, 100 - g - b);
-    const gewichte = {};
-    preise.forEach((p) => {
-      gewichte[p.id] = zahl(c.gewichte && c.gewichte[p.id], 1, 0, 1000);
-    });
     return {
       preis: zahl(c.preis, d.preis, 0, 100000),
-      quoteGluehwein: g,
-      quoteBier: b,
-      quoteTopf: t,
-      gewichte,
+      quoteGetraenk: zahl(c.quoteGetraenk, d.quoteGetraenk, 0, 100),
       losSeite: String(c.losSeite || '').trim(),
       abholfrist: String(c.abholfrist || '').trim()
     };
@@ -59,23 +47,9 @@
     };
   }
 
-  // Ergebnis eines Loses: Niete, Glühwein, Schnaitl oder die id eines Topfes.
-  // rand01 liefert Zufallszahlen in [0, 1).
-  function auslosen(config, preise, rand01) {
-    const r = rand01() * 100;
-    const getraenke = config.quoteGluehwein + config.quoteBier;
-    if (r < config.quoteGluehwein) return GLUEHWEIN;
-    if (r < getraenke) return BIER;
-    if (r >= getraenke + config.quoteTopf) return NIETE;
-    const aktiv = preise.filter((p) => config.gewichte[p.id] > 0);
-    const summe = aktiv.reduce((s, p) => s + config.gewichte[p.id], 0);
-    if (!summe) return NIETE;
-    let x = rand01() * summe;
-    for (const p of aktiv) {
-      x -= config.gewichte[p.id];
-      if (x < 0) return p.id;
-    }
-    return aktiv[aktiv.length - 1].id;
+  // Ergebnis eines Loses: Getränk oder Preistopf. rand01 liefert Zufallszahlen in [0, 1).
+  function auslosen(config, rand01) {
+    return rand01() * 100 < config.quoteGetraenk ? GETRAENK : TOPF;
   }
 
   function pruefcode(rand01) {
@@ -93,11 +67,11 @@
     return geraet > 1 ? [geraet * 10000 + 1, geraet * 10000 + 9999] : [1, 9999];
   }
 
-  function verkaufen(stand, config, preise, rand01, jetzt, geraet) {
+  function verkaufen(stand, config, rand01, jetzt, geraet) {
     const [von, bis] = bereich(geraet || 1);
     const nr = stand.lose.reduce((m, l) => (l.nr >= von && l.nr <= bis ? Math.max(m, l.nr) : m), von - 1) + 1;
     if (nr > bis) throw new Error('Der Nummernbereich dieses Geräts ist voll.');
-    const los = { nr, t: jetzt, preis: config.preis, erg: auslosen(config, preise, rand01), pruef: pruefcode(rand01) };
+    const los = { nr, t: jetzt, preis: config.preis, erg: auslosen(config, rand01), pruef: pruefcode(rand01) };
     stand.lose.push(los);
     return los;
   }
@@ -119,16 +93,16 @@
     return basis.split('#')[0] + '#' + los.nr + '-' + los.erg + '-' + los.pruef;
   }
 
-  function linkLesen(hash, preise) {
-    const m = /^#?(\d{1,6})-([A-Za-z]{1,12})-([A-Z2-9]{4})$/.exec(String(hash || ''));
+  // Der Link nennt Nummer, Art (G oder T) und Prüfcode. Lose der früheren Arten gelten nicht mehr.
+  function linkLesen(hash) {
+    const m = /^#?(\d{1,6})-([GT])-([A-Z2-9]{4})$/.exec(String(hash || ''));
     if (!m) return null;
     const nr = Number(m[1]);
-    const erg = m[2];
     if (nr < 1) return null;
-    if (erg !== NIETE && erg !== GLUEHWEIN && erg !== BIER && !preise.some((p) => p.id === erg)) return null;
-    return { nr, erg, pruef: m[3] };
+    return { nr, erg: m[2], pruef: m[3] };
   }
 
+  // Die Ziehung wird je Preis geführt: Preis-id -> Liste der gezogenen Losnummern.
   function gezogene(stand, id) { return stand.ziehung[id] || []; }
 
   // Gezogene Nummern, deren Los storniert wurde. Sie zählen nicht als Gewinner.
@@ -141,17 +115,29 @@
     return raus.length ? gezogene(stand, id).filter((nr) => !raus.includes(nr)) : gezogene(stand, id);
   }
 
-  // Lose, die im Topf liegen und noch gezogen werden können.
-  function imTopf(stand, id) {
-    const raus = gezogene(stand, id).concat(stand.verfallen[id] || []);
-    return stand.lose.filter((l) => l.erg === id && !l.storno && !raus.includes(l.nr));
+  const alleNummern = (listen) => Object.values(listen).reduce((alle, liste) => alle.concat(liste), []);
+
+  // Lose, die im Preistopf liegen und noch gezogen werden können. Es gibt nur einen Topf für alle Preise:
+  // Wer für einen Preis gezogen wurde oder verfallen ist, ist für alle weiteren Preise draußen.
+  function imTopf(stand) {
+    const raus = new Set(alleNummern(stand.ziehung).concat(alleNummern(stand.verfallen)));
+    return stand.lose.filter((l) => l.erg === TOPF && !l.storno && !raus.has(l.nr));
   }
 
+  // Für diesen Preis ist so oft gezogen worden wie vorgesehen.
   function topfFertig(stand, preis) {
     return gueltigGezogene(stand, preis.id).length >= preis.ziehungen;
   }
 
-  // Zieht ein Los aus dem Topf. Gibt die Losnummer zurück oder null.
+  // Die id des Preises, den dieses Los bei der Ziehung gewonnen hat – oder null.
+  function gewinnVon(stand, nr) {
+    const los = stand.lose.find((l) => l.nr === nr);
+    if (!los || los.storno) return null;
+    const id = Object.keys(stand.ziehung).find((k) => stand.ziehung[k].includes(nr));
+    return id === undefined ? null : id;
+  }
+
+  // Zieht für diesen Preis ein Los aus dem Preistopf. Gibt die Losnummer zurück oder null.
   // Eine gezogene Nummer, deren Los inzwischen storniert ist, verfällt dabei.
   function ziehen(stand, preis, rand01) {
     const storniert = stornoGezogen(stand, preis.id);
@@ -160,7 +146,7 @@
       stand.verfallen[preis.id] = (stand.verfallen[preis.id] || []).concat(storniert);
     }
     if (topfFertig(stand, preis)) return null;
-    const lose = imTopf(stand, preis.id);
+    const lose = imTopf(stand);
     if (!lose.length) return null;
     const los = lose[Math.floor(rand01() * lose.length)];
     stand.ziehung[preis.id] = gezogene(stand, preis.id).concat(los.nr);
@@ -177,26 +163,32 @@
   }
 
   // Inhalt der Datei gewinner.json. Prüfcodes stehen absichtlich nicht drin.
+  // "abgeschlossen" heißt: Die Ziehung ist vorbei – alle Preise sind vergeben oder der Topf ist leer.
+  // Erst dann zeigt ein nicht gezogenes Los "Nicht gezogen".
   function gewinnerDatei(stand, config, preise, jetzt) {
     const gewinner = [];
-    const fertig = [];
-    preise.forEach((p) => {
-      const gueltig = gueltigGezogene(stand, p.id);
-      gueltig.forEach((nr) => gewinner.push({ nr, topf: p.id }));
-      if (topfFertig(stand, p) || (gueltig.length && !imTopf(stand, p.id).length)) fertig.push(p.id);
-    });
-    return { stand: new Date(jetzt).toISOString(), abholfrist: config.abholfrist, fertig, gewinner };
+    preise.forEach((p) => gueltigGezogene(stand, p.id).forEach((nr) => gewinner.push({ nr, preis: p.id })));
+    const abgeschlossen = gewinner.length > 0 && (preise.every((p) => topfFertig(stand, p)) || !imTopf(stand).length);
+    return { stand: new Date(jetzt).toISOString(), abholfrist: config.abholfrist, abgeschlossen, gewinner };
+  }
+
+  // Der Preis, den dieses Los laut Gewinner-Datei gewonnen hat – oder null.
+  function losGewinn(los, datei) {
+    if (los.erg !== TOPF || !datei || !Array.isArray(datei.gewinner)) return null;
+    const g = datei.gewinner.find((e) => e.nr === los.nr);
+    return g ? g.preis : null;
   }
 
   // Was die Los-Seite zeigt.
   function losStatus(los, datei) {
-    if (los.erg === NIETE) return 'niete';
-    if (los.erg === GLUEHWEIN) return 'gluehwein';
-    if (los.erg === BIER) return 'bier';
-    const gewinner = datei && Array.isArray(datei.gewinner) ? datei.gewinner : [];
-    if (gewinner.some((g) => g.nr === los.nr && g.topf === los.erg)) return 'gewonnen';
-    if (datei && Array.isArray(datei.fertig) && datei.fertig.includes(los.erg)) return 'nichtGezogen';
-    return 'imTopf';
+    if (los.erg === GETRAENK) return 'getraenk';
+    if (losGewinn(los, datei)) return 'gewonnen';
+    return datei && datei.abgeschlossen ? 'nichtGezogen' : 'imTopf';
+  }
+
+  // Was im Preistopf liegt, zum Aufzählen: jeder Preis einmal, mehrfache mit Anzahl.
+  function preisListe(preise) {
+    return preise.map((p) => (p.ziehungen > 1 ? p.ziehungen + ' × ' + p.name : p.name));
   }
 
   // Links, mit denen ein Kunde dem Verein sein Los schicken kann (E-Mail, WhatsApp).
@@ -222,8 +214,7 @@
     if (!los) return { status: 'unbekannt' };
     if (los.pruef !== String(pruef || '').trim().toUpperCase()) return { status: 'falscherCode' };
     if (los.storno) return { status: 'storno', los };
-    const gewonnen = gezogene(stand, los.erg).includes(los.nr);
-    return { status: 'ok', los, gewonnen };
+    return { status: 'ok', los, gewinn: gewinnVon(stand, los.nr) };
   }
 
   // Preis oder Getränk wurde übergeben: einmal vermerken, mit Uhrzeit. So fällt auf, wenn dasselbe Los zweimal kommt.
@@ -239,20 +230,16 @@
     return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
   };
 
-  function statistik(stand, preise, jetzt) {
+  function statistik(stand, jetzt) {
     const gueltig = stand.lose.filter((l) => !l.storno);
     const heute = tagVon(jetzt);
-    const toepfe = {};
-    preise.forEach((p) => { toepfe[p.id] = gueltig.filter((l) => l.erg === p.id).length; });
     return {
       gesamt: gueltig.length,
       heute: gueltig.filter((l) => tagVon(l.t) === heute).length,
-      nieten: gueltig.filter((l) => l.erg === NIETE).length,
-      gluehwein: gueltig.filter((l) => l.erg === GLUEHWEIN).length,
-      bier: gueltig.filter((l) => l.erg === BIER).length,
+      getraenk: gueltig.filter((l) => l.erg === GETRAENK).length,
+      topf: gueltig.filter((l) => l.erg === TOPF).length,
       storniert: stand.lose.length - gueltig.length,
-      einnahmen: gueltig.reduce((s, l) => s + (Number(l.preis) || 0), 0),
-      toepfe
+      einnahmen: gueltig.reduce((s, l) => s + (Number(l.preis) || 0), 0)
     };
   }
 
@@ -260,14 +247,14 @@
     return { art: 'tombola-sicherung', version: 1, erstellt: new Date(jetzt).toISOString(), config, stand };
   }
 
-  function sicherungLesen(obj, preise) {
+  function sicherungLesen(obj) {
     if (!obj || obj.art !== 'tombola-sicherung' || !obj.stand || !Array.isArray(obj.stand.lose)) {
       throw new Error('Das ist keine Sicherungsdatei der Tombola.');
     }
     const ok = obj.stand.lose.every((l) =>
       Number.isInteger(l.nr) && l.nr > 0 && typeof l.erg === 'string' && typeof l.pruef === 'string');
     if (!ok) throw new Error('Die Sicherungsdatei ist beschädigt.');
-    return { stand: standPruefen(obj.stand), config: configPruefen(obj.config, preise) };
+    return { stand: standPruefen(obj.stand), config: configPruefen(obj.config) };
   }
 
   // ---------- Mehrere Geräte: Team-Code und Abgleich mit der gemeinsamen Liste ----------
@@ -309,8 +296,8 @@
 
   // Diese Einstellungen gelten für alle Geräte gemeinsam. Die Adresse der Los-Seite bleibt je Gerät.
   function gemeinsameConfig(config) {
-    const { preis, quoteGluehwein, quoteBier, quoteTopf, gewichte, abholfrist } = config;
-    return { preis, quoteGluehwein, quoteBier, quoteTopf, gewichte, abholfrist };
+    const { preis, quoteGetraenk, abholfrist } = config;
+    return { preis, quoteGetraenk, abholfrist };
   }
 
   // Neuer Merkzettel nach dem Anlegen der Liste oder dem Beitreten.
@@ -399,7 +386,7 @@
 
   // Die Antwort der Ablage einarbeiten. Ändert stand und sync, gibt die gültigen Einstellungen
   // und gegebenenfalls eine Meldung zurück: 'geleert' oder 'ziehungAbgelehnt'.
-  function abgleichAntwort(sync, stand, config, anfrage, antwort, preise, jetzt) {
+  function abgleichAntwort(sync, stand, config, anfrage, antwort, jetzt) {
     const merk = anfrage.merk;
     const aktuell = antwort.epoche === sync.epoche;
     let meldung;
@@ -466,7 +453,7 @@
 
     if (!sync.offen.config) {
       if (antwort.config.v !== sync.configV && antwort.config.wert) {
-        config = configPruefen({ ...antwort.config.wert, losSeite: config.losSeite }, preise);
+        config = configPruefen({ ...antwort.config.wert, losSeite: config.losSeite });
       }
       sync.configV = antwort.config.v;
     }
@@ -493,12 +480,12 @@
   }
 
   const api = {
-    NIETE, GLUEHWEIN, BIER, STANDARD_CONFIG,
+    GETRAENK, TOPF, STANDARD_CONFIG,
     configPruefen, leererStand, standPruefen,
     auslosen, pruefcode, verkaufen, stornieren,
     nrText, losLink, linkLesen,
-    imTopf, gezogene, stornoGezogen, gueltigGezogene, topfFertig, ziehen, neuZiehen,
-    gewinnerDatei, losStatus, kontaktLinks, losPruefen, ausgeben, statistik,
+    imTopf, gezogene, stornoGezogen, gueltigGezogene, topfFertig, gewinnVon, ziehen, neuZiehen,
+    gewinnerDatei, losGewinn, losStatus, preisListe, kontaktLinks, losPruefen, ausgeben, statistik,
     sicherung, sicherungLesen,
     bereich, teamCode, codeText, codeLesen, teamLink, nurAmGeraet,
     abgleichNeu, abgleichVormerken, abgleichOffen, abgleichWer, abgleichCodeNeu, abgleichAnfrage, abgleichAntwort, abgleichGeleert
